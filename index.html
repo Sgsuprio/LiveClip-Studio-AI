@@ -143,7 +143,7 @@
       text-shadow: 0 0 10px #6366f1, 0 0 22px #8b5cf6, 0 2px 4px #000;
     }
 
-    /* Simulated Video Motion Background */
+    /* Preview Motion Background */
     @keyframes videoPan {
       0% { transform: scale(1.08) translate(0px, 0px); }
       50% { transform: scale(1.2) translate(-24px, -14px); }
@@ -204,8 +204,8 @@
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <span class="hidden md:inline">Colab T4 GPU Runtime Ready</span>
-          <span class="md:hidden">GPU Ready</span>
+          <span class="hidden md:inline">Runs on free Colab GPU</span>
+          <span class="md:hidden">Colab GPU</span>
         </div>
 
         <!-- Share & Export Modal Trigger -->
@@ -240,12 +240,12 @@
           Turn Raw Streams into <span class="bg-gradient-to-r from-indigo-400 via-violet-400 to-emerald-400 bg-clip-text text-transparent">Viral Short Clips</span>
         </h1>
         <p class="mt-1.5 text-sm text-zinc-400 max-w-2xl">
-          Powered by Whisper Large-v3 transcription, YOLOv8 active speaker face-tracking, and LLM hook scoring—running directly on cloud GPU acceleration.
+          Paste a video link, generate the job config, and run it in the free Colab notebook — it transcribes the audio, scores the best moments, and renders real vertical clips with captions.
         </p>
       </div>
       <div class="flex items-center gap-3 text-xs font-mono text-zinc-400">
-        <span class="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/5">VRAM: 4.2 / 15.0 GB</span>
-        <span class="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/5">FFmpeg CUDA: ON</span>
+        <span class="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/5">Whisper transcription</span>
+        <span class="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/5">Free Colab GPU</span>
       </div>
     </section>
 
@@ -329,8 +329,8 @@
               <div class="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/10 group-hover:border-indigo-500/40 group-hover:scale-105 transition-all flex items-center justify-center mx-auto mb-3">
                 <i data-lucide="film" class="w-6 h-6 text-indigo-400"></i>
               </div>
-              <p id="dropZoneTitle" class="text-sm font-semibold text-white">Drop your raw VOD, podcast, or gameplay video here</p>
-              <p id="dropZoneSubtitle" class="text-xs text-zinc-400 mt-1">Supports MP4, MOV, MKV, WEBM up to 10 GB (Local GPU Upload)</p>
+              <p id="dropZoneTitle" class="text-sm font-semibold text-white">Have a video file instead of a link?</p>
+              <p id="dropZoneSubtitle" class="text-xs text-zinc-400 mt-1">Upload the file inside the Colab notebook (it accepts MP4, MOV, MKV, WEBM) — this page only takes links. Picking a file here just notes its name for your config.</p>
               <span class="inline-block mt-4 px-4 py-1.5 rounded-lg bg-zinc-800 group-hover:bg-indigo-600 text-xs font-medium text-zinc-200 group-hover:text-white transition-colors">
                 Browse Local Files
               </span>
@@ -341,14 +341,22 @@
           <div class="mt-6 pt-5 border-t border-white/[0.07] flex flex-col sm:flex-row items-center justify-between gap-4">
             <div class="flex items-center gap-2 text-xs text-zinc-400">
               <i data-lucide="cpu" class="w-4 h-4 text-emerald-400"></i>
-              <span>Estimated Colab processing time: <strong class="text-zinc-200 font-mono">~18 sec</strong></span>
+              <span>Real clipping runs in Colab (free GPU) — a 5-min video takes about 2–4 min</span>
             </div>
 
-            <button id="generateBtn" onclick="startGeneration()"
-              class="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/30 hover:shadow-indigo-500/45 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]">
-              <i data-lucide="wand-2" class="w-4 h-4"></i>
-              <span id="generateBtnText">Generate Viral Clips</span>
-            </button>
+            <div class="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
+              <button id="loadResultsBtn" onclick="document.getElementById('resultsFileInput').click()"
+                class="w-full sm:w-auto px-5 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
+                <i data-lucide="folder-open" class="w-4 h-4 text-emerald-400"></i>
+                Load Colab Results
+              </button>
+              <input type="file" id="resultsFileInput" accept=".json,application/json" class="hidden" onchange="loadResultsFile(event)" />
+              <button id="generateBtn" onclick="startGeneration()"
+                class="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/30 hover:shadow-indigo-500/45 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]">
+                <i data-lucide="wand-2" class="w-4 h-4"></i>
+                <span id="generateBtnText">Generate Viral Clips</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -416,9 +424,26 @@
               </button>
             </div>
             <div id="terminalLog" class="p-3.5 h-36 overflow-y-auto font-mono text-xs space-y-1.5 text-zinc-300">
-              <div class="text-zinc-500">[23:05:01] Connected to Google Colab Tesla T4 GPU (15102 MiB).</div>
-              <div class="text-emerald-400">[23:05:02] ✓ Loaded faster-whisper (large-v3, float16) & YOLOv8n-face weights.</div>
-              <div class="text-indigo-400">[23:05:02] Ready. Paste a stream URL or upload a file and click "Generate Viral Clips".</div>
+              <div class="text-zinc-500">Ready. Paste a YouTube URL, pick your settings, then click "Generate Viral Clips".</div>
+              <div class="text-zinc-500">Generate downloads liveclip_config.json — run it in the Colab notebook, then load the results back here.</div>
+            </div>
+          </div>
+
+          <!-- Colab handoff (shown after Generate prepares the config) -->
+          <div id="colabHandoff" class="hidden mt-5 rounded-xl bg-indigo-600/10 border border-indigo-500/30 p-4">
+            <p class="text-xs font-semibold text-white mb-1">Your config is ready — now run it in Colab</p>
+            <p class="text-[11px] text-zinc-400 leading-relaxed mb-3">1. Open the notebook &nbsp;2. Upload <span class="font-mono text-zinc-200">liveclip_config.json</span> when asked &nbsp;3. Runtime → T4 GPU → Run all &nbsp;4. Download <span class="font-mono text-zinc-200">liveclip_clips.json</span> and load it back here.</p>
+            <div class="flex flex-wrap gap-2">
+              <a href="https://colab.research.google.com/github/Sgsuprio/LiveClip-Studio-AI/blob/main/liveclip_colab.ipynb" target="_blank" rel="noopener noreferrer"
+                class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                Open Colab Notebook
+              </a>
+              <button onclick="downloadJsonConfig()"
+                class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-zinc-200 text-xs font-medium flex items-center gap-1.5 transition-colors">
+                <i data-lucide="download" class="w-3.5 h-3.5 text-indigo-400"></i>
+                Download Config Again
+              </button>
             </div>
           </div>
         </div>
@@ -548,23 +573,6 @@
             </div>
           </div>
 
-          <!-- Toggle: Smart Face Tracking -->
-          <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/80 border border-white/[0.07]">
-            <div class="flex items-center gap-2.5">
-              <div class="w-7 h-7 rounded-lg bg-violet-500/15 flex items-center justify-center text-violet-400">
-                <i data-lucide="scan-face" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <p class="text-xs font-semibold text-white">Smart Face Tracking</p>
-                <p class="text-[11px] text-zinc-400">Auto-reframe active speaker</p>
-              </div>
-            </div>
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="toggleFaceTrack" checked class="sr-only peer">
-              <div class="w-9 h-5 bg-zinc-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-            </label>
-          </div>
-
           <!-- Toggle: Viral Hook Detection -->
           <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/80 border border-white/[0.07]">
             <div class="flex items-center gap-2.5">
@@ -590,7 +598,7 @@
               </div>
               <div>
                 <p class="text-xs font-semibold text-white">Auto Silence Removal</p>
-                <p class="text-[11px] text-zinc-400">Trim dead air & pauses &gt;0.6s</p>
+                <p class="text-[11px] text-zinc-400">Start each clip at the first spoken word</p>
               </div>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
@@ -608,7 +616,7 @@
         <div class="flex items-center gap-3">
           <h2 class="text-xl font-bold text-white">Generated Viral Clips</h2>
           <span id="galleryCountBadge" class="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-xs font-semibold">
-            3 Ready
+            0 Ready
           </span>
         </div>
 
@@ -853,121 +861,32 @@
       clipCount: 3,
       captionsEnabled: true,
       captionStyle: 'hormozi', // 'hormozi' | 'minimal' | 'neon'
-      faceTracking: true,
       hookDetection: true,
       silenceRemoval: false,
       isGenerating: false,
       editingClipId: null,
       playingClipId: null,
       recordingClipId: null,
-      captionIntervals: {}
+      captionIntervals: {},
+      loadedResults: null
     };
 
-    // Initial Pre-Populated High-Performing Clips
-    let clipsData = [
-      {
-        id: 'clip-1',
-        title: 'Why 99% of AI Startups Will Fail in the Next 18 Months',
-        score: 98,
-        startTime: '00:14:22',
-        endTime: '00:14:51',
-        duration: '29s',
-        hookReason: 'High emotional contrast + contrarian opener in first 2.4s',
-        transcript: "If you're just wrapping an API without proprietary workflow data, the next foundation model update wipes out your entire company overnight.",
-        gradient: 'from-indigo-950 via-purple-900/60 to-zinc-950',
-        accentColor: '#818cf8',
-        speakerTag: 'Speaker A • Face Locked'
-      },
-      {
-        id: 'clip-2',
-        title: 'The Exact GPU Cluster Trick That Cut Inference Latency by 70%',
-        score: 94,
-        startTime: '00:48:10',
-        endTime: '00:48:37',
-        duration: '27s',
-        hookReason: 'Concrete metric reveal + high vocal energy spike',
-        transcript: "We stopped batching dynamically across nodes and pinned KV-cache directly into local VRAM—suddenly latency dropped from 420ms to 115ms.",
-        gradient: 'from-emerald-950 via-teal-900/50 to-zinc-950',
-        accentColor: '#34d399',
-        speakerTag: 'Speaker B • Face Locked'
-      },
-      {
-        id: 'clip-3',
-        title: 'How Solo Creators Are Building Media Empires With Live Streams',
-        score: 91,
-        startTime: '01:32:05',
-        endTime: '01:32:33',
-        duration: '28s',
-        hookReason: 'Actionable playbook + strong retention loop',
-        transcript: "One two-hour live stream gives you twenty micro-stories. When AI finds the peak moments automatically, distribution becomes effortless.",
-        gradient: 'from-violet-950 via-fuchsia-900/50 to-zinc-950',
-        accentColor: '#c084fc',
-        speakerTag: 'Speaker A • Face Locked'
-      }
-    ];
+    // Real clips only. The gallery starts empty: clips appear here after the
+    // Colab notebook runs and its liveclip_clips.json is loaded with
+    // "Load Colab Results". Nothing on this page is pre-filled or simulated.
+    let clipsData = [];
 
-    // Extra pool of realistic generated clips when user clicks "Generate"
-    const generatedClipPool = [
-      {
-        title: 'The Hidden Mistake Killing Your Live Stream Retention Rate',
-        score: 97,
-        startTime: '00:08:14',
-        endTime: '00:08:42',
-        duration: '28s',
-        hookReason: 'Curiosity gap + direct viewer callout',
-        transcript: "Never spend the first ninety seconds saying hello to chat. Drop straight into the highest-stakes story and let the replay viewers get hooked immediately.",
-        gradient: 'from-rose-950 via-indigo-950 to-zinc-950',
-        accentColor: '#fb7185',
-        speakerTag: 'Speaker A • Face Locked'
-      },
-      {
-        title: 'Why Real-Time Whisper Transcription Changes Everything',
-        score: 95,
-        startTime: '00:26:49',
-        endTime: '00:27:16',
-        duration: '27s',
-        hookReason: 'Tech breakthrough insight + fast pacing',
-        transcript: "Sub-second word timestamps mean captions don't just sit on screen—they punch on every stressed syllable like a human editor spent hours keyframing.",
-        gradient: 'from-indigo-950 via-sky-950 to-zinc-950',
-        accentColor: '#38bdf8',
-        speakerTag: 'Speaker B • Face Locked'
-      },
-      {
-        title: 'Zero-Budget Setup That Looks Like a $50,000 Studio',
-        score: 92,
-        startTime: '01:05:11',
-        endTime: '01:05:39',
-        duration: '28s',
-        hookReason: 'High shareability + strong contrast framing',
-        transcript: "Turn off every overhead light in your room, place one soft key light at 45 degrees, and suddenly a basic webcam looks like cinema.",
-        gradient: 'from-amber-950/80 via-zinc-900 to-zinc-950',
-        accentColor: '#fbbf24',
-        speakerTag: 'Speaker A • Face Locked'
-      },
-      {
-        title: 'What Happens When AI Agents Watch Live Gaming & Podcasts',
-        score: 89,
-        startTime: '01:44:02',
-        endTime: '01:44:30',
-        duration: '28s',
-        hookReason: 'Futuristic prediction + high sentiment score',
-        transcript: "By detecting laughter, chat velocity spikes, and vocal pitch shifts simultaneously, the model knows a clip is viral before you even finish streaming.",
-        gradient: 'from-emerald-950 via-indigo-950 to-zinc-950',
-        accentColor: '#34d399',
-        speakerTag: 'Speaker A • Face Locked'
-      },
-      {
-        title: 'Stop Over-Editing: Why Raw Authentic Moments Win the Algorithm',
-        score: 87,
-        startTime: '01:58:19',
-        endTime: '01:58:44',
-        duration: '25s',
-        hookReason: 'Relatable creator pain point + punchy close',
-        transcript: "Audiences can smell over-scripted content in half a second. Keep the unscripted reaction, tighten the dead air, and let the emotion carry the clip.",
-        gradient: 'from-purple-950 via-zinc-900 to-zinc-950',
-        accentColor: '#a78bfa',
-        speakerTag: 'Speaker B • Face Locked'
-      }
+    // Card visuals cycle per clip (gradient + accent). These are presentation
+    // only — every word, score and timestamp comes from liveclip_clips.json.
+    const CLIP_VISUALS = [
+      { gradient: 'from-indigo-950 via-purple-900/60 to-zinc-950', accentColor: '#818cf8' },
+      { gradient: 'from-emerald-950 via-teal-900/50 to-zinc-950', accentColor: '#34d399' },
+      { gradient: 'from-violet-950 via-fuchsia-900/50 to-zinc-950', accentColor: '#c084fc' },
+      { gradient: 'from-rose-950 via-indigo-950 to-zinc-950', accentColor: '#fb7185' },
+      { gradient: 'from-indigo-950 via-sky-950 to-zinc-950', accentColor: '#38bdf8' },
+      { gradient: 'from-amber-950/80 via-zinc-900 to-zinc-950', accentColor: '#fbbf24' },
+      { gradient: 'from-emerald-950 via-indigo-950 to-zinc-950', accentColor: '#34d399' },
+      { gradient: 'from-purple-950 via-zinc-900 to-zinc-950', accentColor: '#a78bfa' },
     ];
 
     // Initialize Icons & Render Gallery on Load
@@ -983,13 +902,15 @@
         const previewCard = document.getElementById('urlPreviewCard');
         if (val.length > 8) {
           previewCard.classList.remove('hidden');
-          document.getElementById('urlPreviewTitle').textContent =
-            val.includes('youtube') || val.includes('youtu.be')
-              ? 'Live Stream VOD • Detected 1080p60 Source Stream'
-              : `Stream Source: ${val.slice(0, 48)}...`;
-          // Detect the real title + duration for YouTube links
+          // Never show a made-up title: fetch the real title + duration for
+          // YouTube links, otherwise show the pasted URL as-is.
           const ytId = extractYouTubeId(val);
-          if (ytId) fetchYouTubeMeta(ytId);
+          if (ytId) {
+            fetchYouTubeMeta(ytId);
+          } else {
+            document.getElementById('urlPreviewTitle').textContent = `Stream Source: ${val.slice(0, 48)}...`;
+            document.getElementById('urlPreviewDuration').textContent = 'Duration: —';
+          }
         } else {
           previewCard.classList.add('hidden');
         }
@@ -1036,15 +957,18 @@
       }
     }
 
-    // Fill Sample Stream URL
+    // Fill Sample Stream URL — a real public video (5-min motivational
+    // speech) so the sample works end to end in Colab. Title and duration
+    // come from the real metadata lookup, never hardcoded.
     function fillSampleUrl() {
-      const sample = 'https://www.youtube.com/watch?v=liveclip_ai_podcast_4k';
+      const sample = 'https://www.youtube.com/watch?v=gwhbt8dWvN4';
       const input = document.getElementById('streamUrlInput');
       input.value = sample;
-      document.getElementById('urlPreviewTitle').textContent = 'AI Founders Live Summit 2026 — Full 2hr Keynote & Q&A';
-      document.getElementById('urlPreviewDuration').textContent = 'Duration: 02:14:38';
+      document.getElementById('urlPreviewTitle').textContent = 'Loading real title…';
+      document.getElementById('urlPreviewDuration').textContent = 'Duration: detecting…';
       document.getElementById('urlPreviewCard').classList.remove('hidden');
-      showToast('Sample stream URL loaded into Colab pipeline', 'info');
+      fetchYouTubeMeta('gwhbt8dWvN4');
+      showToast('Sample stream URL loaded — a real 5-min speech video', 'info');
     }
 
     // Detect the real YouTube title + duration for a pasted URL.
@@ -1102,8 +1026,8 @@
     function setUploadedFileUI(file) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
       document.getElementById('dropZoneTitle').textContent = file.name;
-      document.getElementById('dropZoneSubtitle').textContent = `Ready for GPU ingest • ${sizeMB} MB • Local Buffer Mounted`;
-      showToast(`Mounted "${file.name}" (${sizeMB} MB)`, 'success');
+      document.getElementById('dropZoneSubtitle').textContent = `"${file.name}" (${sizeMB} MB) — upload this file inside the Colab notebook; the notebook reads a link by default.`;
+      showToast(`Noted "${file.name}" — upload it in Colab to clip it`, 'info');
     }
 
     // Configuration Selectors
@@ -1163,10 +1087,8 @@
       document.getElementById('clipCountSlider').value = 3;
       updateClipCount(3);
       document.getElementById('toggleCaptions').checked = true;
-      document.getElementById('toggleFaceTrack').checked = true;
       document.getElementById('toggleHookDetect').checked = true;
       document.getElementById('toggleSilence').checked = false;
-      state.faceTracking = true;
       state.hookDetection = true;
       state.silenceRemoval = false;
       // Restore the highlighted default buttons too (previously the old
@@ -1195,113 +1117,112 @@
 
     function clearTerminal() {
       document.getElementById('terminalLog').innerHTML =
-        '<div class="text-zinc-500">[system] Terminal buffer cleared. Ready for execution.</div>';
+        '<div class="text-zinc-500">Ready. Paste a YouTube URL, pick your settings, then click "Generate Viral Clips".</div>';
     }
 
-    // Multi-Stage AI Clipping Simulation
-    async function startGeneration() {
-      if (state.isGenerating) return;
-
-      // Auto-fill sample URL if empty so user always experiences smooth flow
+    // Real Generate: this page cannot transcribe video in the browser, so
+    // Generate prepares the real job config and hands off to the Colab
+    // notebook, which does the transcription, scoring and rendering.
+    // No fake stages, no fake clips — the gallery only fills when real
+    // results (liveclip_clips.json) are loaded back with Load Colab Results.
+    function startGeneration() {
       const urlVal = document.getElementById('streamUrlInput').value.trim();
       if (state.inputMode === 'url' && !urlVal) {
-        fillSampleUrl();
+        showToast('Paste a YouTube URL first — or use Sample Stream', 'error');
+        document.getElementById('streamUrlInput').focus();
+        return;
       }
 
-      state.isGenerating = true;
-      const btn = document.getElementById('generateBtn');
-      const btnText = document.getElementById('generateBtnText');
-      const spinner = document.getElementById('statusSpinner');
-      const progressFill = document.getElementById('progressBarFill');
-      const progressText = document.getElementById('progressPercent');
+      // Build the real job config and download it for Colab.
+      const cfg = buildConfigObject();
+      triggerBlobDownload(JSON.stringify(cfg, null, 2), 'liveclip_config.json', 'application/json');
 
-      btn.disabled = true;
-      btn.classList.add('opacity-75', 'cursor-not-allowed');
-      btnText.textContent = 'Running Colab Pipeline...';
-      spinner.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping';
-
-      // Reset stage pills
-      [1, 2, 3, 4].forEach(i => {
-        const pill = document.getElementById(`step-${i}`);
-        pill.className = 'step-pill p-2.5 rounded-xl bg-zinc-950/80 border border-white/[0.06] transition-all opacity-60';
-      });
-
-      const stages = [
-        {
-          step: 1,
-          pct: 25,
-          label: 'INGESTING • 25%',
-          logs: [
-            { msg: 'Initializing yt-dlp stream extractor with aria2c 16-thread acceleration...', cls: 'text-indigo-300' },
-            { msg: 'Downloaded audio/video stream (1080p60, AAC 192kbps) to /content/liveclip/raw.mp4', cls: 'text-emerald-400' }
-          ]
-        },
-        {
-          step: 2,
-          pct: 52,
-          label: 'TRANSCRIBING • 52%',
-          logs: [
-            { msg: 'Running faster-whisper large-v3 on CUDA (float16) with VAD filter...', cls: 'text-indigo-300' },
-            { msg: 'Extracted 1,842 word-level timestamps with 99.1% confidence.', cls: 'text-emerald-400' }
-          ]
-        },
-        {
-          step: 3,
-          pct: 78,
-          label: 'SCORING HOOKS • 78%',
-          logs: [
-            { msg: `Analyzing semantic hooks & audio energy peaks for top ${state.clipCount} segments (${state.durationPreset})...`, cls: 'text-indigo-300' },
-            { msg: `Ranked candidate clips. Top viral hook score: 98/100.`, cls: 'text-emerald-400' }
-          ]
-        },
-        {
-          step: 4,
-          pct: 100,
-          label: 'RENDERING • 100%',
-          logs: [
-            { msg: `Applying YOLOv8 face-tracking crop (${state.aspectRatio}) & ${state.captionStyle.toUpperCase()} subtitles...`, cls: 'text-indigo-300' },
-            { msg: `✓ Successfully exported ${state.clipCount} ready-to-post MP4 clips via NVENC!`, cls: 'text-emerald-400 font-semibold' }
-          ]
-        }
+      // Show the handoff: the 4 Colab stages are what the notebook will do.
+      const pills = [
+        { id: 'step-1', label: 'STEP 1 • CONFIG READY', log: 'liveclip_config.json downloaded — upload it in Colab when asked.', cls: 'text-emerald-400' },
+        { id: 'step-2', label: 'STEP 2 • OPEN COLAB', log: 'Open the notebook link below, pick a T4 GPU runtime, then Run all.', cls: 'text-indigo-300' },
+        { id: 'step-3', label: 'STEP 3 • NOTEBOOK RUNS', log: 'Colab downloads the video, transcribes it, scores hooks and renders real MP4 clips.', cls: 'text-indigo-300' },
+        { id: 'step-4', label: 'STEP 4 • LOAD RESULTS', log: 'Download liveclip_clips.json from Colab, then Load Colab Results here to see your real clips.', cls: 'text-indigo-300' },
       ];
-
-      for (const stage of stages) {
-        const pill = document.getElementById(`step-${stage.step}`);
+      pills.forEach((p, i) => {
+        const pill = document.getElementById(p.id);
         pill.className = 'step-pill p-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500 transition-all opacity-100';
-        progressFill.style.width = `${stage.pct}%`;
-        progressText.textContent = stage.label;
+        appendLog(p.log, p.cls);
+        setTimeout(() => {
+          pill.className = 'step-pill p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 transition-all opacity-100';
+        }, 400 * (i + 1));
+      });
+      document.getElementById('progressBarFill').style.width = '100%';
+      document.getElementById('progressPercent').textContent = 'CONFIG READY • OPEN COLAB';
+      document.getElementById('statusSpinner').className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping';
 
-        for (const log of stage.logs) {
-          appendLog(log.msg, log.cls);
-          await sleep(650);
+      appendLog(`Job: ${cfg.source_url}`, 'text-zinc-300');
+      appendLog(`Settings: ${cfg.clip_length} • ${cfg.max_clips} clips • ${cfg.caption_style} captions • segment ${cfg.segment_start}s + ${cfg.segment_duration}s`, 'text-zinc-300');
+
+      // Reveal the Colab handoff buttons under the terminal.
+      const handoff = document.getElementById('colabHandoff');
+      if (handoff) handoff.classList.remove('hidden');
+
+      showToast('Config downloaded — open Colab and run the notebook', 'success');
+    }
+
+    // Load real results produced by the Colab notebook.
+    // Expects liveclip_clips.json (version 1): { source_url, source_title,
+    // settings, clips: [{ id, title, score, start, end, startTime, endTime,
+    // duration, hookReason, transcript, hashtags, mp4, srt, words: [...] }] }.
+    function loadResultsFile(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          if (!data || !Array.isArray(data.clips) || data.clips.length === 0) {
+            throw new Error('no clips in file');
+          }
+          const mapped = data.clips.map((c, i) => {
+            if (typeof c.score !== 'number' || !c.transcript || !c.startTime) {
+              throw new Error('clip is missing score, transcript or startTime');
+            }
+            const visual = CLIP_VISUALS[i % CLIP_VISUALS.length];
+            return {
+              id: c.id || `clip-${i + 1}`,
+              title: c.title || 'Untitled clip',
+              score: Math.round(c.score),
+              startTime: c.startTime,
+              endTime: c.endTime || '',
+              duration: c.duration || '',
+              hookReason: c.hookReason || 'Scored by the Colab hook detector',
+              transcript: c.transcript,
+              hashtags: Array.isArray(c.hashtags) ? c.hashtags : [],
+              mp4: c.mp4 || '',
+              srt: c.srt || '',
+              words: Array.isArray(c.words) ? c.words : null,
+              gradient: visual.gradient,
+              accentColor: visual.accentColor,
+              speakerTag: 'Real transcript • Colab render'
+            };
+          });
+          clipsData = mapped;
+          state.loadedResults = {
+            source_title: data.source_title || '',
+            source_url: data.source_url || '',
+            generated_at: data.generated_at || ''
+          };
+          renderClipsGallery();
+          document.getElementById('progressBarFill').style.width = '100%';
+          document.getElementById('progressPercent').textContent = `LOADED • ${mapped.length} REAL CLIPS`;
+          document.getElementById('statusSpinner').className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+          appendLog(`Loaded ${mapped.length} real clips from ${file.name}`, 'text-emerald-400');
+          if (data.source_title) appendLog(`Source: ${data.source_title}`, 'text-zinc-300');
+          showToast(`Loaded ${mapped.length} real clips from Colab`, 'success');
+        } catch (err) {
+          showToast('That file is not a valid liveclip_clips.json — download it from the Colab notebook', 'error');
+          appendLog(`Load failed: ${err.message}`, 'text-rose-400');
         }
-
-        pill.className = 'step-pill p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 transition-all opacity-100';
-      }
-
-      // Build New Clips List based on requested count
-      const combinedPool = [...generatedClipPool, ...clipsData];
-      const newClips = [];
-      for (let i = 0; i < state.clipCount; i++) {
-        const template = combinedPool[i % combinedPool.length];
-        newClips.push({
-          ...template,
-          id: `clip-gen-${Date.now()}-${i}`,
-          score: Math.max(84, 98 - i * 2)
-        });
-      }
-      clipsData = newClips;
-      renderClipsGallery();
-
-      // Restore Button State
-      state.isGenerating = false;
-      btn.disabled = false;
-      btn.classList.remove('opacity-75', 'cursor-not-allowed');
-      btnText.textContent = 'Generate Viral Clips';
-      spinner.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
-      progressText.textContent = 'COMPLETE • 100%';
-
-      showToast(`Generated ${state.clipCount} viral clips ready for preview!`, 'success');
+        event.target.value = '';
+      };
+      reader.readAsText(file);
     }
 
     function sleep(ms) {
@@ -1318,6 +1239,16 @@
       Object.values(state.captionIntervals).forEach(clearInterval);
       state.captionIntervals = {};
       state.playingClipId = null;
+
+      if (clipsData.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full glass-card rounded-2xl p-8 text-center">
+            <p class="text-sm font-semibold text-white mb-1.5">No clips yet — these will be your real clips</p>
+            <p class="text-xs text-zinc-400 leading-relaxed max-w-md mx-auto">Paste a YouTube URL above and click <span class="text-zinc-200 font-medium">Generate Viral Clips</span> to build the Colab config, run the notebook, then come back and click <span class="text-zinc-200 font-medium">Load Colab Results</span> with the <span class="font-mono">liveclip_clips.json</span> file. Scores, transcripts and times on this page always come from your actual video.</p>
+          </div>`;
+        lucide.createIcons();
+        return;
+      }
 
       grid.innerHTML = clipsData.map((clip, index) => {
         const scoreColor = clip.score >= 95
@@ -1351,21 +1282,21 @@
                 </span>
               </div>
 
-              <!-- Interactive Simulated Video Player Frame -->
+              <!-- Clip Preview Frame (animated stand-in, not the rendered footage) -->
               <div class="px-4">
                 <div onclick="toggleClipPlayback('${clip.id}')"
                      class="relative rounded-xl overflow-hidden bg-zinc-950 border border-white/10 cursor-pointer group ${previewFrameClass}">
                   
-                  <!-- Simulated Dynamic Video Visual -->
+                  <!-- Preview Visual -->
                   <div id="bg-${clip.id}" class="absolute inset-0 bg-gradient-to-br ${clip.gradient} transition-transform duration-700">
                     <!-- Subtle Studio Grid & Face-Tracking Bounding Box -->
                     <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.25) 1px, transparent 0); background-size: 20px 20px;"></div>
                     
-                    <!-- Simulated Speaker Silhouette + YOLOv8 Face Track Box -->
+                    <!-- Preview Frame -->
                     <div class="absolute inset-0 flex items-center justify-center">
                       <div class="relative w-28 h-32 rounded-2xl border border-dashed border-emerald-400/50 flex flex-col items-center justify-between p-2">
                         <span class="self-start text-[9px] font-mono bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">
-                          FACE 0.99
+                          PREVIEW
                         </span>
                         <div class="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
                           <i data-lucide="user" class="w-6 h-6 text-white/70"></i>
@@ -1422,6 +1353,16 @@
                 <p class="text-xs text-zinc-400 line-clamp-3 leading-relaxed bg-zinc-950/60 p-2.5 rounded-xl border border-white/[0.05]">
                   "${clip.transcript}"
                 </p>
+
+                ${clip.hashtags && clip.hashtags.length ? `
+                <p class="text-[11px] font-mono text-indigo-300/90 leading-relaxed">
+                  ${clip.hashtags.join(' ')}
+                </p>` : ''}
+
+                ${clip.mp4 ? `
+                <p class="text-[11px] font-mono text-zinc-500">
+                  Real MP4: ${clip.mp4} — inside the Colab export pack (LiveClip_Export_Pack.zip)
+                </p>` : ''}
               </div>
             </div>
 
@@ -1450,7 +1391,7 @@
       lucide.createIcons();
     }
 
-    // Simulated Video Playback with Word-by-Word Animated Captions
+    // Clip Preview Playback with Word-by-Word Animated Captions
     function toggleClipPlayback(clipId) {
       const clip = clipsData.find(c => c.id === clipId);
       if (!clip) return;
@@ -1594,14 +1535,29 @@
       return `${h}:${m}:${s},${ms}`;
     }
 
+    // Build a .srt for a clip. Times are RELATIVE to the clip start (0:00 is
+    // the first frame of the clip MP4), matching the .srt files the Colab
+    // notebook renders. Real clips carry word timings from the Colab
+    // transcription (clip.words, seconds relative to the clip start), so the
+    // captions land on the exact words. Only clips without word timings fall
+    // back to even 2.2s chunks.
     function buildSrt(clip) {
-      const words = clip.transcript.split(' ').filter(Boolean);
-      const start = timeToSeconds(clip.startTime);
-      const chunkSeconds = 2.2;
       let out = '';
+      if (Array.isArray(clip.words) && clip.words.length) {
+        for (let i = 0; i < clip.words.length; i += 4) {
+          const chunk = clip.words.slice(i, i + 4);
+          const idx = i / 4 + 1;
+          const t0 = chunk[0].start || 0;
+          const t1 = chunk[chunk.length - 1].end || 0;
+          out += `${idx}\n${srtTimestamp(t0)} --> ${srtTimestamp(t1)}\n${chunk.map(w => w.word).join(' ').trim()}\n\n`;
+        }
+        return out;
+      }
+      const words = clip.transcript.split(' ').filter(Boolean);
+      const chunkSeconds = 2.2;
       for (let i = 0; i < words.length; i += 4) {
         const idx = i / 4 + 1;
-        const t0 = start + (i / 4) * chunkSeconds;
+        const t0 = (i / 4) * chunkSeconds;
         const t1 = t0 + chunkSeconds;
         out += `${idx}\n${srtTimestamp(t0)} --> ${srtTimestamp(t1)}\n${words.slice(i, i + 4).join(' ')}\n\n`;
       }
@@ -1715,7 +1671,7 @@
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
       ctx.font = `bold ${Math.round(W * 0.028)}px monospace`;
       ctx.textAlign = 'left';
-      ctx.fillText('FACE 0.99', boxX + 12, boxY + 30);
+      ctx.fillText('PREVIEW', boxX + 12, boxY + 30);
       ctx.fillText('9:16 CROP', boxX + 12, boxY + boxH - 14);
 
       // Animated captions (same 4-word chunks every 950ms as the preview)
@@ -1844,12 +1800,30 @@
         downloadJsonConfig();
         return;
       }
+      if (clipsData.length === 0) {
+        showToast('No clips loaded yet — run the Colab notebook and load the results first', 'info');
+        return;
+      }
       const zip = new JSZip();
       clipsData.forEach((clip) => {
         zip.file(`${safeClipName(clip)}.srt`, buildSrt(clip));
       });
       zip.file('liveclip_config.json', formatConfigOutput('json'));
-      zip.file('README.txt', 'LiveClip Studio AI export pack.\nCaptions are .srt files, one per clip.\nRender the actual MP4s from the Colab notebook using liveclip_config.json.\n');
+      if (state.loadedResults) {
+        zip.file('liveclip_clips.json', JSON.stringify({
+          version: 1,
+          source_title: state.loadedResults.source_title,
+          source_url: state.loadedResults.source_url,
+          generated_at: state.loadedResults.generated_at,
+          clips: clipsData.map(c => ({
+            id: c.id, title: c.title, score: c.score,
+            startTime: c.startTime, endTime: c.endTime, duration: c.duration,
+            hookReason: c.hookReason, transcript: c.transcript,
+            hashtags: c.hashtags, mp4: c.mp4, srt: c.srt, words: c.words
+          }))
+        }, null, 2));
+      }
+      zip.file('README.txt', 'LiveClip Studio AI export pack.\nCaptions are real .srt files built from the Colab transcription word timings, one per clip.\nThe rendered MP4s live in the Colab export pack (LiveClip_Export_Pack.zip from the notebook) — this page cannot host them.\nUse liveclip_config.json to re-run the same job in Colab.\n');
       const blob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1860,7 +1834,8 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       showToast(`Downloaded LiveClip_Export_Pack.zip (${clipsData.length} clips)`, 'success');
-      appendLog(`Created archive LiveClip_Export_Pack.zip (${clipsData.length + 2} files)`, 'text-indigo-400');
+      const fileCount = clipsData.length + 2 + (state.loadedResults ? 1 : 0);
+      appendLog(`Created archive LiveClip_Export_Pack.zip (${fileCount} files)`, 'text-indigo-400');
     }
 
     // Toast Notification Utility
@@ -1931,7 +1906,6 @@
 
     function syncCurrentStateFromDOM() {
       state.captionsEnabled = document.getElementById('toggleCaptions').checked;
-      state.faceTracking = document.getElementById('toggleFaceTrack').checked;
       state.hookDetection = document.getElementById('toggleHookDetect').checked;
       state.silenceRemoval = document.getElementById('toggleSilence').checked;
     }
@@ -1943,7 +1917,6 @@
       params.set('ratio', state.aspectRatio);
       params.set('clips', state.clipCount);
       params.set('caption', state.captionsEnabled ? state.captionStyle : 'off');
-      params.set('face_track', state.faceTracking ? '1' : '0');
       params.set('hook_detect', state.hookDetection ? '1' : '0');
       params.set('silence_trim', state.silenceRemoval ? '1' : '0');
 
@@ -1954,25 +1927,24 @@
       return `${baseUrl}?${params.toString()}`;
     }
 
+    // Flat v2 config — the exact keys the Colab notebook reads. Keep this in
+    // sync with liveclip_colab.ipynb (cell: config). The notebook also reads
+    // the older nested format, but the page always writes this flat one.
     function buildConfigObject() {
       syncCurrentStateFromDOM();
       return {
-        project: 'LiveClip Studio AI',
-        colab_notebook: COLAB_NOTEBOOK_URL,
-        source_url: document.getElementById('streamUrlInput').value.trim() || 'https://www.youtube.com/watch?v=liveclip_ai_podcast_4k',
-        clip_settings: {
-          target_duration: state.durationPreset,
-          aspect_ratio: state.aspectRatio,
-          max_clips: state.clipCount
-        },
-        ai_pipeline: {
-          whisper_model: 'large-v3',
-          dynamic_captions: state.captionsEnabled,
-          caption_style: state.captionStyle,
-          smart_face_tracking: state.faceTracking,
-          viral_hook_detection: state.hookDetection,
-          auto_silence_removal: state.silenceRemoval
-        }
+        source_url: document.getElementById('streamUrlInput').value.trim() || 'https://www.youtube.com/watch?v=gwhbt8dWvN4',
+        segment_start: 0,
+        segment_duration: 1200,
+        clip_length: state.durationPreset,
+        max_clips: state.clipCount,
+        caption_style: state.captionStyle,
+        aspect_ratio: state.aspectRatio,
+        whisper_model: 'base',
+        language: 'en',
+        dynamic_captions: state.captionsEnabled,
+        viral_hook_detection: state.hookDetection,
+        auto_silence_removal: state.silenceRemoval
       };
     }
 
@@ -1981,7 +1953,9 @@
       if (format === 'json') {
         return JSON.stringify(cfg, null, 2);
       }
-      return `# Paste into your LiveClip Google Colab cell\nLIVECLIP_CONFIG = {\n    "source_url": "${cfg.source_url}",\n    "target_duration": "${cfg.clip_settings.target_duration}",\n    "aspect_ratio": "${cfg.clip_settings.aspect_ratio}",\n    "max_clips": ${cfg.clip_settings.max_clips},\n    "dynamic_captions": ${cfg.ai_pipeline.dynamic_captions ? 'True' : 'False'},\n    "caption_style": "${cfg.ai_pipeline.caption_style}",\n    "smart_face_tracking": ${cfg.ai_pipeline.smart_face_tracking ? 'True' : 'False'},\n    "viral_hook_detection": ${cfg.ai_pipeline.viral_hook_detection ? 'True' : 'False'},\n    "auto_silence_removal": ${cfg.ai_pipeline.auto_silence_removal ? 'True' : 'False'}\n}`;
+      return `# Paste into your LiveClip Google Colab cell\nLIVECLIP_CONFIG = {\n    "source_url": "${cfg.source_url}",\n    "segment_start": ${cfg.segment_start},\n    "segment_duration": ${cfg.segment_duration},\n    "clip_length": "${cfg.clip_length}",\n    "max_clips": ${cfg.max_clips},\n    "caption_style": "${cfg.caption_style}",\n    "aspect_ratio": "${cfg.aspect_ratio}",\n    "whisper_model": "${cfg.whisper_model}",\n    "language": "${cfg.language}",\n    "dynamic_captions": ${cfg.dynamic_captions ? 'True' : 'False'},
+    "viral_hook_detection": ${cfg.viral_hook_detection ? 'True' : 'False'},
+    "auto_silence_removal": ${cfg.auto_silence_removal ? 'True' : 'False'}\n}`;
     }
 
     function updateShareUrlsAndConfig() {
@@ -2136,7 +2110,6 @@
         }
       }
 
-      if (params.has('face_track')) document.getElementById('toggleFaceTrack').checked = params.get('face_track') === '1';
       if (params.has('hook_detect')) document.getElementById('toggleHookDetect').checked = params.get('hook_detect') === '1';
       if (params.has('silence_trim')) document.getElementById('toggleSilence').checked = params.get('silence_trim') === '1';
 
