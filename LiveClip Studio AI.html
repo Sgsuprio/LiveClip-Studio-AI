@@ -1,0 +1,1787 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LiveClip — AI Stream & Video Clipping Studio</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            zinc: {
+              950: '#09090b',
+              900: '#121215',
+              850: '#18181b',
+              800: '#27272a',
+            },
+            brand: {
+              indigo: '#6366f1',
+              violet: '#8b5cf6',
+              emerald: '#10b981',
+            }
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'shimmer': 'shimmer 2s linear infinite',
+            'pop': 'pop 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          },
+          keyframes: {
+            shimmer: {
+              '0%': { backgroundPosition: '-200% 0' },
+              '100%': { backgroundPosition: '200% 0' },
+            },
+            pop: {
+              '0%': { transform: 'scale(0.92)', opacity: '0.7' },
+              '100%': { transform: 'scale(1)', opacity: '1' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Glassmorphism & Subtle Scrollbars */
+    body {
+      background-color: #09090b;
+      color: #f4f4f5;
+      overflow-x: hidden;
+    }
+
+    .glass-card {
+      background: rgba(18, 18, 21, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-card-hover {
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .glass-card-hover:hover {
+      border-color: rgba(99, 102, 241, 0.45);
+      box-shadow: 0 12px 32px -8px rgba(99, 102, 241, 0.16);
+      transform: translateY(-2px);
+    }
+
+    /* Ambient Glow Blobs */
+    .ambient-glow {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      filter: blur(140px);
+      opacity: 0.14;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Custom Range Slider */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 999px;
+      background: #27272a;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      margin-top: -5px;
+      background-color: #6366f1;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.8);
+      transition: transform 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.18);
+    }
+
+    /* Caption Styles */
+    .caption-hormozi {
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      text-shadow: 0 3px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 8px 16px rgba(0,0,0,0.85);
+    }
+    .caption-minimal {
+      font-weight: 600;
+      background: rgba(9, 9, 11, 0.82);
+      backdrop-filter: blur(6px);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .caption-neon {
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #ffffff;
+      text-shadow: 0 0 10px #6366f1, 0 0 22px #8b5cf6, 0 2px 4px #000;
+    }
+
+    /* Simulated Video Motion Background */
+    @keyframes videoPan {
+      0% { transform: scale(1.06) translate(0px, 0px); }
+      50% { transform: scale(1.12) translate(-10px, -6px); }
+      100% { transform: scale(1.06) translate(0px, 0px); }
+    }
+    .animate-video-pan {
+      animation: videoPan 9s ease-in-out infinite;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #09090b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3f3f46;
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased selection:bg-indigo-500/30 selection:text-indigo-200">
+
+  <!-- Ambient Background Lighting -->
+  <div class="ambient-glow bg-indigo-600 -top-48 -left-48"></div>
+  <div class="ambient-glow bg-violet-600 top-1/3 -right-48"></div>
+
+  <!-- Top Navigation Bar -->
+  <header class="sticky top-0 z-40 border-b border-white/[0.07] bg-zinc-950/80 backdrop-blur-xl">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <!-- Left: Brand Identity -->
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+          <i data-lucide="scissors" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-lg tracking-tight text-white">LiveClip</span>
+            <span class="text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+              AI Engine v2.4
+            </span>
+          </div>
+          <p class="text-xs text-zinc-400 hidden sm:block">Autonomous Stream & Long-Form Viral Clipper</p>
+        </div>
+      </div>
+
+      <!-- Right: Colab Runtime Status & Notebook Link -->
+      <div class="flex items-center gap-2.5 sm:gap-3">
+        <!-- Runtime Badge -->
+        <div id="runtimeBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-medium">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span class="hidden md:inline">Colab T4 GPU Runtime Ready</span>
+          <span class="md:hidden">GPU Ready</span>
+        </div>
+
+        <!-- Share & Export Modal Trigger -->
+        <button type="button" onclick="openShareExportModal()"
+          class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 hover:text-white text-xs font-semibold transition-all shadow-sm shadow-indigo-500/10">
+          <i data-lucide="share-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+          <span>Share & Export</span>
+        </button>
+
+        <!-- Colab Notebook Reference Button -->
+        <a href="https://colab.research.google.com/github/Aadi1659/liveclip/blob/main/liveclip_colab.ipynb?utm_source=sp_auto_dm&utm_referrer=sp_auto_dm#scrollTo=POWjp1bBAOM"
+           target="_blank"
+           rel="noopener noreferrer"
+           class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 hover:border-amber-500/40 text-zinc-200 text-xs font-medium transition-all group">
+          <svg class="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M16.94 4.94a7.06 7.06 0 0 0-9.88 0 7.06 7.06 0 0 0 0 9.88l1.77-1.77a4.56 4.56 0 0 1 0-6.34 4.56 4.56 0 0 1 6.34 0l1.77-1.77zm-2.83 2.83a3.06 3.06 0 0 0-4.22 0 3.06 3.06 0 0 0 0 4.22l1.77-1.77a.56.56 0 0 1 0-.68.56.56 0 0 1 .68 0l1.77-1.77zm4.95 1.41l-1.77 1.77a4.56 4.56 0 0 1 0 6.34 4.56 4.56 0 0 1-6.34 0l-1.77 1.77a7.06 7.06 0 0 0 9.88 0 7.06 7.06 0 0 0 0-9.88z"/>
+          </svg>
+          <span class="hidden sm:inline">Colab Workflow</span>
+          <i data-lucide="external-link" class="w-3.5 h-3.5 text-zinc-400"></i>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace Container -->
+  <main class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+    <!-- Hero Title & Intro -->
+    <section class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+          Turn Raw Streams into <span class="bg-gradient-to-r from-indigo-400 via-violet-400 to-emerald-400 bg-clip-text text-transparent">Viral Short Clips</span>
+        </h1>
+        <p class="mt-1.5 text-sm text-zinc-400 max-w-2xl">
+          Powered by Whisper Large-v3 transcription, YOLOv8 active speaker face-tracking, and LLM hook scoring—running directly on cloud GPU acceleration.
+        </p>
+      </div>
+      <div class="flex items-center gap-3 text-xs font-mono text-zinc-400">
+        <span class="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/5">VRAM: 4.2 / 15.0 GB</span>
+        <span class="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/5">FFmpeg CUDA: ON</span>
+      </div>
+    </section>
+
+    <!-- Studio Input & Configuration Grid -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+      <!-- Left Column (7 cols): Media Source Input + Terminal / Progress -->
+      <div class="lg:col-span-7 space-y-6">
+
+        <!-- Media Source Card -->
+        <div class="glass-card rounded-2xl p-5 sm:p-6 shadow-xl">
+          <!-- Source Tabs -->
+          <div class="flex items-center justify-between gap-4 border-b border-white/[0.07] pb-4 mb-5">
+            <div class="inline-flex p-1 rounded-xl bg-zinc-950/90 border border-white/[0.06]">
+              <button id="tabUrlBtn" onclick="switchInputTab('url')"
+                class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-indigo-600 text-white shadow-md shadow-indigo-600/25">
+                <i data-lucide="link" class="w-4 h-4"></i>
+                YouTube / Stream URL
+              </button>
+              <button id="tabUploadBtn" onclick="switchInputTab('upload')"
+                class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all text-zinc-400 hover:text-white">
+                <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                Upload Video File
+              </button>
+            </div>
+
+            <span class="text-xs font-mono text-zinc-500 hidden sm:inline">yt-dlp + PyTorch</span>
+          </div>
+
+          <!-- Tab 1: URL Input -->
+          <div id="urlInputPanel" class="space-y-4">
+            <div>
+              <label for="streamUrlInput" class="block text-xs font-medium text-zinc-300 mb-2">
+                Paste YouTube, Twitch VOD, Kick, or X/Twitter Broadcast URL
+              </label>
+              <div class="relative flex flex-col sm:flex-row gap-2.5">
+                <div class="relative flex-1">
+                  <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <i data-lucide="youtube" class="w-4 h-4 text-rose-500"></i>
+                  </div>
+                  <input type="text" id="streamUrlInput"
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    class="w-full pl-10 pr-4 py-3 rounded-xl bg-zinc-950/90 border border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm text-white placeholder-zinc-500 outline-none transition-all font-mono" />
+                </div>
+                <button type="button" onclick="fillSampleUrl()"
+                  class="px-3.5 py-2.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 border border-white/10 text-xs font-medium text-zinc-200 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-400"></i>
+                  Sample Stream
+                </button>
+              </div>
+            </div>
+
+            <!-- Quick Stream Metadata Pill (Appears when URL populated) -->
+            <div id="urlPreviewCard" class="hidden rounded-xl bg-zinc-950/70 border border-white/[0.07] p-3 flex items-center gap-3.5 animate-pop">
+              <div class="w-16 h-11 rounded-lg bg-gradient-to-br from-indigo-900 to-zinc-900 flex items-center justify-center border border-white/10 shrink-0 relative overflow-hidden">
+                <i data-lucide="play-circle" class="w-5 h-5 text-indigo-400"></i>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p id="urlPreviewTitle" class="text-xs font-semibold text-white truncate">Lex Fridman Podcast #419 — Sam Altman: OpenAI, GPT-5 & AGI</p>
+                <div class="flex items-center gap-3 mt-1 text-[11px] font-mono text-zinc-400">
+                  <span>1080p60 • H.264</span>
+                  <span>Duration: 02:14:38</span>
+                  <span class="text-emerald-400">Stream Ready</span>
+                </div>
+              </div>
+              <button onclick="clearUrlInput()" class="p-1.5 text-zinc-500 hover:text-zinc-300 rounded-lg">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Tab 2: Drag & Drop File Upload -->
+          <div id="uploadInputPanel" class="hidden space-y-4">
+            <div id="dropZone"
+              onclick="document.getElementById('fileInputHidden').click()"
+              class="border-2 border-dashed border-zinc-700 hover:border-indigo-500/70 bg-zinc-950/60 hover:bg-indigo-950/10 rounded-2xl p-8 text-center cursor-pointer transition-all group">
+              <input type="file" id="fileInputHidden" accept="video/mp4,video/quicktime,video/x-matroska,video/webm" class="hidden" onchange="handleFileSelect(event)" />
+              <div class="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/10 group-hover:border-indigo-500/40 group-hover:scale-105 transition-all flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="film" class="w-6 h-6 text-indigo-400"></i>
+              </div>
+              <p id="dropZoneTitle" class="text-sm font-semibold text-white">Drop your raw VOD, podcast, or gameplay video here</p>
+              <p id="dropZoneSubtitle" class="text-xs text-zinc-400 mt-1">Supports MP4, MOV, MKV, WEBM up to 10 GB (Local GPU Upload)</p>
+              <span class="inline-block mt-4 px-4 py-1.5 rounded-lg bg-zinc-800 group-hover:bg-indigo-600 text-xs font-medium text-zinc-200 group-hover:text-white transition-colors">
+                Browse Local Files
+              </span>
+            </div>
+          </div>
+
+          <!-- Primary CTA Action Bar -->
+          <div class="mt-6 pt-5 border-t border-white/[0.07] flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-2 text-xs text-zinc-400">
+              <i data-lucide="cpu" class="w-4 h-4 text-emerald-400"></i>
+              <span>Estimated Colab processing time: <strong class="text-zinc-200 font-mono">~18 sec</strong></span>
+            </div>
+
+            <button id="generateBtn" onclick="startGeneration()"
+              class="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/30 hover:shadow-indigo-500/45 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]">
+              <i data-lucide="wand-2" class="w-4 h-4"></i>
+              <span id="generateBtnText">Generate Viral Clips</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Interactive Processing & Colab Cell Terminal -->
+        <div id="processingCard" class="glass-card rounded-2xl p-5 sm:p-6 border-indigo-500/25 shadow-2xl transition-all">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2.5">
+              <div id="statusSpinner" class="w-2.5 h-2.5 rounded-full bg-zinc-600"></div>
+              <h2 class="text-sm font-semibold text-white">Colab Execution Pipeline</h2>
+            </div>
+            <span id="progressPercent" class="text-xs font-mono font-semibold text-indigo-400">IDLE • 0%</span>
+          </div>
+
+          <!-- Multi-stage Progress Bar -->
+          <div class="w-full h-2.5 rounded-full bg-zinc-950 border border-white/5 overflow-hidden mb-5">
+            <div id="progressBarFill" class="h-full w-0 rounded-full bg-gradient-to-r from-indigo-500 via-violet-500 to-emerald-400 transition-all duration-300"></div>
+          </div>
+
+          <!-- 4 Pipeline Steps Indicators -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
+            <div id="step-1" class="step-pill p-2.5 rounded-xl bg-zinc-950/80 border border-white/[0.06] transition-all">
+              <div class="flex items-center justify-between text-[11px] font-mono text-zinc-500 mb-1">
+                <span>STAGE 01</span>
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              </div>
+              <p class="text-xs font-medium text-zinc-300 truncate">Ingest Stream</p>
+            </div>
+
+            <div id="step-2" class="step-pill p-2.5 rounded-xl bg-zinc-950/80 border border-white/[0.06] transition-all">
+              <div class="flex items-center justify-between text-[11px] font-mono text-zinc-500 mb-1">
+                <span>STAGE 02</span>
+                <i data-lucide="audio-waveform" class="w-3.5 h-3.5"></i>
+              </div>
+              <p class="text-xs font-medium text-zinc-300 truncate">Whisper ASR</p>
+            </div>
+
+            <div id="step-3" class="step-pill p-2.5 rounded-xl bg-zinc-950/80 border border-white/[0.06] transition-all">
+              <div class="flex items-center justify-between text-[11px] font-mono text-zinc-500 mb-1">
+                <span>STAGE 03</span>
+                <i data-lucide="flame" class="w-3.5 h-3.5"></i>
+              </div>
+              <p class="text-xs font-medium text-zinc-300 truncate">Viral Scoring</p>
+            </div>
+
+            <div id="step-4" class="step-pill p-2.5 rounded-xl bg-zinc-950/80 border border-white/[0.06] transition-all">
+              <div class="flex items-center justify-between text-[11px] font-mono text-zinc-500 mb-1">
+                <span>STAGE 04</span>
+                <i data-lucide="clapperboard" class="w-3.5 h-3.5"></i>
+              </div>
+              <p class="text-xs font-medium text-zinc-300 truncate">Crop & Render</p>
+            </div>
+          </div>
+
+          <!-- Live Terminal Output Window (Mirrors Colab Notebook Cell) -->
+          <div class="rounded-xl bg-[#060608] border border-white/[0.08] overflow-hidden">
+            <div class="px-3.5 py-2 bg-zinc-900/90 border-b border-white/[0.06] flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
+                <span class="ml-2 text-[11px] font-mono text-zinc-400">[cell-4] liveclip_pipeline.py</span>
+              </div>
+              <button onclick="clearTerminal()" class="text-[11px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors">
+                Clear Logs
+              </button>
+            </div>
+            <div id="terminalLog" class="p-3.5 h-36 overflow-y-auto font-mono text-xs space-y-1.5 text-zinc-300">
+              <div class="text-zinc-500">[23:05:01] Connected to Google Colab Tesla T4 GPU (15102 MiB).</div>
+              <div class="text-emerald-400">[23:05:02] ✓ Loaded faster-whisper (large-v3, float16) & YOLOv8n-face weights.</div>
+              <div class="text-indigo-400">[23:05:02] Ready. Paste a stream URL or upload a file and click "Generate Viral Clips".</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column (5 cols): AI Configuration & Settings Panel -->
+      <div class="lg:col-span-5 glass-card rounded-2xl p-5 sm:p-6 shadow-xl space-y-6">
+        <div class="flex items-center justify-between border-b border-white/[0.07] pb-4">
+          <div class="flex items-center gap-2">
+            <i data-lucide="sliders-horizontal" class="w-4 h-4 text-indigo-400"></i>
+            <h2 class="text-sm font-bold text-white tracking-wide uppercase">AI Clip Configuration</h2>
+          </div>
+          <button onclick="resetSettings()" class="text-xs text-zinc-400 hover:text-indigo-400 transition-colors">
+            Reset Defaults
+          </button>
+        </div>
+
+        <!-- 1. Clip Length Presets -->
+        <div class="space-y-2.5">
+          <label class="block text-xs font-medium text-zinc-300">Target Clip Duration</label>
+          <div class="grid grid-cols-3 gap-2" id="durationGroup">
+            <button type="button" onclick="selectDuration('15-30s', this)"
+              class="duration-btn active p-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500 text-left transition-all">
+              <div class="text-xs font-bold text-white">Shorts / Reels</div>
+              <div class="text-[11px] font-mono text-indigo-300 mt-0.5">15 – 30s</div>
+            </button>
+            <button type="button" onclick="selectDuration('30-60s', this)"
+              class="duration-btn p-2.5 rounded-xl bg-zinc-950/80 border border-white/10 hover:border-white/25 text-left transition-all">
+              <div class="text-xs font-bold text-zinc-200">Standard</div>
+              <div class="text-[11px] font-mono text-zinc-400 mt-0.5">30 – 60s</div>
+            </button>
+            <button type="button" onclick="selectDuration('60-90s', this)"
+              class="duration-btn p-2.5 rounded-xl bg-zinc-950/80 border border-white/10 hover:border-white/25 text-left transition-all">
+              <div class="text-xs font-bold text-zinc-200">Highlights</div>
+              <div class="text-[11px] font-mono text-zinc-400 mt-0.5">60 – 90s</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Aspect Ratio Selector with Visual Preview Icons -->
+        <div class="space-y-2.5">
+          <label class="block text-xs font-medium text-zinc-300">Output Aspect Ratio</label>
+          <div class="grid grid-cols-3 gap-2.5" id="aspectGroup">
+            <button type="button" onclick="selectAspect('9:16', this)"
+              class="aspect-btn active p-3 rounded-xl bg-indigo-600/20 border border-indigo-500 flex flex-col items-center justify-center gap-2 transition-all">
+              <div class="w-4 h-7 rounded-[3px] border-2 border-indigo-400 bg-indigo-500/20"></div>
+              <div class="text-center">
+                <div class="text-xs font-bold text-white">9:16</div>
+                <div class="text-[10px] text-indigo-300">Vertical</div>
+              </div>
+            </button>
+
+            <button type="button" onclick="selectAspect('16:9', this)"
+              class="aspect-btn p-3 rounded-xl bg-zinc-950/80 border border-white/10 hover:border-white/25 flex flex-col items-center justify-center gap-2 transition-all">
+              <div class="w-7 h-4 rounded-[3px] border-2 border-zinc-400 bg-zinc-800 my-1.5"></div>
+              <div class="text-center">
+                <div class="text-xs font-bold text-zinc-200">16:9</div>
+                <div class="text-[10px] text-zinc-400">Landscape</div>
+              </div>
+            </button>
+
+            <button type="button" onclick="selectAspect('1:1', this)"
+              class="aspect-btn p-3 rounded-xl bg-zinc-950/80 border border-white/10 hover:border-white/25 flex flex-col items-center justify-center gap-2 transition-all">
+              <div class="w-5 h-5 rounded-[3px] border-2 border-zinc-400 bg-zinc-800 my-1"></div>
+              <div class="text-center">
+                <div class="text-xs font-bold text-zinc-200">1:1</div>
+                <div class="text-[10px] text-zinc-400">Square</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Number of Clips Slider -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label for="clipCountSlider" class="text-xs font-medium text-zinc-300">Max Clips to Extract</label>
+            <span id="clipCountValue" class="px-2.5 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-mono text-xs font-bold">
+              3 Clips
+            </span>
+          </div>
+          <input id="clipCountSlider" type="range" min="1" max="10" value="3" oninput="updateClipCount(this.value)" class="w-full" />
+          <div class="flex justify-between text-[10px] font-mono text-zinc-500">
+            <span>1</span>
+            <span>3</span>
+            <span>5</span>
+            <span>8</span>
+            <span>10</span>
+          </div>
+        </div>
+
+        <!-- 4. AI Feature Toggles & Caption Style Picker -->
+        <div class="space-y-3 pt-2 border-t border-white/[0.07]">
+          <label class="block text-xs font-medium text-zinc-300">AI Enhancement Pipeline</label>
+
+          <!-- Toggle: Auto-Captions -->
+          <div class="p-3 rounded-xl bg-zinc-950/80 border border-white/[0.07] space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-lg bg-indigo-500/15 flex items-center justify-center text-indigo-400">
+                  <i data-lucide="subtitles" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <p class="text-xs font-semibold text-white">Dynamic AI Captions</p>
+                  <p class="text-[11px] text-zinc-400">Word-level Whisper timestamps</p>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="toggleCaptions" checked onchange="toggleCaptionStyleBox()" class="sr-only peer">
+                <div class="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+
+            <!-- Caption Style Selector -->
+            <div id="captionStyleContainer" class="grid grid-cols-3 gap-1.5 pt-2 border-t border-white/[0.06]">
+              <button type="button" onclick="selectCaptionStyle('hormozi', this)"
+                class="cap-style-btn active py-1.5 px-2 rounded-lg bg-indigo-600 text-white text-[11px] font-bold tracking-tight transition-all">
+                BOLD POP
+              </button>
+              <button type="button" onclick="selectCaptionStyle('minimal', this)"
+                class="cap-style-btn py-1.5 px-2 rounded-lg bg-zinc-900 text-zinc-300 hover:text-white text-[11px] font-medium transition-all">
+                Minimal Clean
+              </button>
+              <button type="button" onclick="selectCaptionStyle('neon', this)"
+                class="cap-style-btn py-1.5 px-2 rounded-lg bg-zinc-900 text-zinc-300 hover:text-white text-[11px] font-semibold transition-all">
+                Neon Glow
+              </button>
+            </div>
+          </div>
+
+          <!-- Toggle: Smart Face Tracking -->
+          <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/80 border border-white/[0.07]">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-violet-500/15 flex items-center justify-center text-violet-400">
+                <i data-lucide="scan-face" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-white">Smart Face Tracking</p>
+                <p class="text-[11px] text-zinc-400">Auto-reframe active speaker</p>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggleFaceTrack" checked class="sr-only peer">
+              <div class="w-9 h-5 bg-zinc-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <!-- Toggle: Viral Hook Detection -->
+          <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/80 border border-white/[0.07]">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-400">
+                <i data-lucide="trending-up" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-white">Viral Hook Detection</p>
+                <p class="text-[11px] text-zinc-400">Rank high-retention openers</p>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggleHookDetect" checked class="sr-only peer">
+              <div class="w-9 h-5 bg-zinc-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <!-- Toggle: Silence Removal -->
+          <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/80 border border-white/[0.07]">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-400">
+                <i data-lucide="scissors-line-dashed" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-white">Auto Silence Removal</p>
+                <p class="text-[11px] text-zinc-400">Trim dead air & pauses &gt;0.6s</p>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggleSilence" class="sr-only peer">
+              <div class="w-9 h-5 bg-zinc-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Generated Clips Gallery Section -->
+    <section class="pt-4 space-y-5">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.08] pb-4">
+        <div class="flex items-center gap-3">
+          <h2 class="text-xl font-bold text-white">Generated Viral Clips</h2>
+          <span id="galleryCountBadge" class="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-xs font-semibold">
+            3 Ready
+          </span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="sortClipsByScore()" class="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-xs font-medium text-zinc-300 flex items-center gap-1.5 transition-colors">
+            <i data-lucide="arrow-up-down" class="w-3.5 h-3.5 text-indigo-400"></i>
+            Sort by Viral Score
+          </button>
+          <button onclick="downloadAllClips()" class="px-3.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-xs font-semibold text-indigo-300 flex items-center gap-1.5 transition-colors">
+            <i data-lucide="archive" class="w-3.5 h-3.5"></i>
+            Export All (.ZIP)
+          </button>
+        </div>
+      </div>
+
+      <!-- Cards Grid -->
+      <div id="clipsGalleryGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Populated dynamically via JavaScript -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Edit Captions Modal -->
+  <div id="editModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+    <div class="glass-card rounded-2xl w-full max-w-lg border border-white/15 shadow-2xl overflow-hidden animate-pop">
+      <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-zinc-900/80">
+        <div class="flex items-center gap-2">
+          <i data-lucide="type" class="w-4 h-4 text-indigo-400"></i>
+          <h3 class="text-sm font-bold text-white">Edit Clip Title & AI Captions</h3>
+        </div>
+        <button onclick="closeEditModal()" class="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-zinc-300 mb-1.5">Viral Hook Title</label>
+          <input type="text" id="editTitleInput"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-white/10 focus:border-indigo-500 text-sm text-white outline-none" />
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="text-xs font-medium text-zinc-300">Whisper Transcript & Caption Overlay</label>
+            <span class="text-[11px] font-mono text-indigo-400">Auto-synced</span>
+          </div>
+          <textarea id="editTranscriptInput" rows="4"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-white/10 focus:border-indigo-500 text-sm text-zinc-200 outline-none leading-relaxed"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-2">
+          <button onclick="closeEditModal()" class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-300 transition-colors">
+            Cancel
+          </button>
+          <button onclick="saveClipEdits()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-lg shadow-indigo-600/25 transition-colors">
+            Save & Re-sync Captions
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share & Export Studio Modal -->
+  <div id="shareExportModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div class="glass-card rounded-2xl w-full max-w-2xl border border-white/15 shadow-2xl overflow-hidden animate-pop">
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-zinc-900/90">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+            <i data-lucide="share-2" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-white">Share & Export LiveClip Studio</h3>
+            <p class="text-[11px] text-zinc-400">Share presets, export standalone UI, or sync Colab pipeline config</p>
+          </div>
+        </div>
+        <button onclick="closeShareExportModal()" class="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Modal Tabs -->
+      <div class="px-6 pt-4 border-b border-white/[0.07] bg-zinc-950/50 flex items-center gap-2 overflow-x-auto">
+        <button id="shareTabLinkBtn" onclick="switchShareTab('link')"
+          class="share-tab-btn px-3.5 py-2.5 text-xs font-semibold border-b-2 border-indigo-500 text-white flex items-center gap-1.5 whitespace-nowrap transition-all">
+          <i data-lucide="link-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+          Share Link & Colab
+        </button>
+        <button id="shareTabHtmlBtn" onclick="switchShareTab('html')"
+          class="share-tab-btn px-3.5 py-2.5 text-xs font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 whitespace-nowrap transition-all">
+          <i data-lucide="file-code-2" class="w-3.5 h-3.5"></i>
+          Export HTML UI
+        </button>
+        <button id="shareTabConfigBtn" onclick="switchShareTab('config')"
+          class="share-tab-btn px-3.5 py-2.5 text-xs font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 whitespace-nowrap transition-all">
+          <i data-lucide="braces" class="w-3.5 h-3.5"></i>
+          Pipeline Config (JSON / Py)
+        </button>
+      </div>
+
+      <!-- Tab Panel 1: Share Link & Colab -->
+      <div id="sharePanelLink" class="p-6 space-y-5">
+        <!-- Colab Notebook Direct Link -->
+        <div class="space-y-2">
+          <label class="block text-xs font-semibold text-zinc-300">Google Colab Backend Notebook URL</label>
+          <div class="flex items-center gap-2">
+            <input id="colabShareUrlInput" type="text" readonly
+              value="https://colab.research.google.com/github/Aadi1659/liveclip/blob/main/liveclip_colab.ipynb?utm_source=sp_auto_dm&utm_referrer=sp_auto_dm#scrollTo=POWjp1bBAOM"
+              class="flex-1 px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-white/10 text-xs font-mono text-zinc-300 outline-none" />
+            <button onclick="copyFieldText('colabShareUrlInput', 'Colab Notebook URL copied!')"
+              class="px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-white/10 text-xs font-medium text-white flex items-center gap-1.5 transition-colors shrink-0">
+              <i data-lucide="copy" class="w-3.5 h-3.5 text-amber-400"></i>
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <!-- Dynamic Preset URL -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold text-zinc-300">Shareable Studio Preset URL</label>
+            <span class="text-[11px] font-mono text-emerald-400">Auto-loads your current settings</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <input id="presetShareUrlInput" type="text" readonly
+              class="flex-1 px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-indigo-500/30 text-xs font-mono text-indigo-200 outline-none" />
+            <button onclick="copyFieldText('presetShareUrlInput', 'Shareable Studio Preset URL copied!')"
+              class="px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white flex items-center gap-1.5 shadow-md shadow-indigo-600/25 transition-colors shrink-0">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              Copy Preset URL
+            </button>
+          </div>
+        </div>
+
+        <!-- Social & Native Quick Share -->
+        <div class="pt-3 border-t border-white/[0.07] flex flex-wrap items-center justify-between gap-3">
+          <span class="text-xs text-zinc-400">Quick share via:</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="shareViaNative()"
+              class="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-xs font-medium text-zinc-200 flex items-center gap-1.5 transition-colors">
+              <i data-lucide="send" class="w-3.5 h-3.5 text-indigo-400"></i>
+              System Share
+            </button>
+            <button onclick="shareViaWhatsApp()"
+              class="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-medium text-emerald-300 flex items-center gap-1.5 transition-colors">
+              <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+              WhatsApp
+            </button>
+            <button onclick="shareViaTelegram()"
+              class="px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-xs font-medium text-sky-300 flex items-center gap-1.5 transition-colors">
+              <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
+              Telegram
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Panel 2: Export Standalone HTML -->
+      <div id="sharePanelHtml" class="p-6 space-y-5 hidden">
+        <div class="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-start gap-3">
+          <i data-lucide="globe" class="w-5 h-5 text-indigo-400 shrink-0 mt-0.5"></i>
+          <div class="space-y-1">
+            <h4 class="text-xs font-bold text-white">Self-Contained Single-File Web App</h4>
+            <p class="text-xs text-zinc-300 leading-relaxed">
+              Export the complete LiveClip Studio UI as a standalone <code class="font-mono text-indigo-300">liveclip-studio.html</code> file. Send it directly to teammates or deploy it free on GitHub Pages, Netlify, or Vercel.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button onclick="downloadStandaloneHtml()"
+            class="p-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-left transition-all shadow-lg shadow-indigo-600/25 flex items-center justify-between group">
+            <div>
+              <div class="text-xs font-bold flex items-center gap-1.5">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                Download liveclip-studio.html
+              </div>
+              <div class="text-[11px] text-indigo-200 mt-1">Ready for browser or static hosting</div>
+            </div>
+            <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition-transform"></i>
+          </button>
+
+          <button onclick="copyStandaloneHtml()"
+            class="p-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-zinc-200 text-left transition-all flex items-center justify-between group">
+            <div>
+              <div class="text-xs font-bold text-white flex items-center gap-1.5">
+                <i data-lucide="clipboard-copy" class="w-4 h-4 text-indigo-400"></i>
+                Copy Full HTML Source
+              </div>
+              <div class="text-[11px] text-zinc-400 mt-1">Paste into any editor or CodePen</div>
+            </div>
+            <i data-lucide="copy" class="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab Panel 3: Pipeline Config (JSON & Python) -->
+      <div id="sharePanelConfig" class="p-6 space-y-4 hidden">
+        <div class="flex items-center justify-between">
+          <div class="inline-flex p-1 rounded-lg bg-zinc-950 border border-white/10">
+            <button id="cfgFormatJsonBtn" onclick="switchConfigFormat('json')"
+              class="px-3 py-1 rounded-md bg-indigo-600 text-white text-xs font-semibold transition-all">
+              liveclip_config.json
+            </button>
+            <button id="cfgFormatPyBtn" onclick="switchConfigFormat('python')"
+              class="px-3 py-1 rounded-md text-zinc-400 hover:text-white text-xs font-medium transition-all">
+              Colab Python Dict
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="copyExportedConfig()"
+              class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-white/10 text-xs font-medium text-white flex items-center gap-1.5 transition-colors">
+              <i data-lucide="copy" class="w-3.5 h-3.5 text-indigo-400"></i>
+              Copy
+            </button>
+            <button onclick="downloadJsonConfig()"
+              class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white flex items-center gap-1.5 transition-colors">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              Download .JSON
+            </button>
+          </div>
+        </div>
+
+        <pre id="exportedConfigPreview"
+          class="p-4 rounded-xl bg-[#060608] border border-white/10 font-mono text-xs text-emerald-300 overflow-x-auto max-h-56 leading-relaxed"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 pointer-events-none"></div>
+
+  <!-- Application Logic -->
+  <script>
+    // Application State
+    const state = {
+      inputMode: 'url',
+      durationPreset: '15-30s',
+      aspectRatio: '9:16',
+      clipCount: 3,
+      captionsEnabled: true,
+      captionStyle: 'hormozi', // 'hormozi' | 'minimal' | 'neon'
+      faceTracking: true,
+      hookDetection: true,
+      silenceRemoval: false,
+      isGenerating: false,
+      editingClipId: null,
+      playingClipId: null,
+      captionIntervals: {}
+    };
+
+    // Initial Pre-Populated High-Performing Clips
+    let clipsData = [
+      {
+        id: 'clip-1',
+        title: 'Why 99% of AI Startups Will Fail in the Next 18 Months',
+        score: 98,
+        startTime: '00:14:22',
+        endTime: '00:14:51',
+        duration: '29s',
+        hookReason: 'High emotional contrast + contrarian opener in first 2.4s',
+        transcript: "If you're just wrapping an API without proprietary workflow data, the next foundation model update wipes out your entire company overnight.",
+        gradient: 'from-indigo-950 via-purple-900/60 to-zinc-950',
+        accentColor: '#818cf8',
+        speakerTag: 'Speaker A • Face Locked'
+      },
+      {
+        id: 'clip-2',
+        title: 'The Exact GPU Cluster Trick That Cut Inference Latency by 70%',
+        score: 94,
+        startTime: '00:48:10',
+        endTime: '00:48:37',
+        duration: '27s',
+        hookReason: 'Concrete metric reveal + high vocal energy spike',
+        transcript: "We stopped batching dynamically across nodes and pinned KV-cache directly into local VRAM—suddenly latency dropped from 420ms to 115ms.",
+        gradient: 'from-emerald-950 via-teal-900/50 to-zinc-950',
+        accentColor: '#34d399',
+        speakerTag: 'Speaker B • Face Locked'
+      },
+      {
+        id: 'clip-3',
+        title: 'How Solo Creators Are Building Media Empires With Live Streams',
+        score: 91,
+        startTime: '01:32:05',
+        endTime: '01:32:33',
+        duration: '28s',
+        hookReason: 'Actionable playbook + strong retention loop',
+        transcript: "One two-hour live stream gives you twenty micro-stories. When AI finds the peak moments automatically, distribution becomes effortless.",
+        gradient: 'from-violet-950 via-fuchsia-900/50 to-zinc-950',
+        accentColor: '#c084fc',
+        speakerTag: 'Speaker A • Face Locked'
+      }
+    ];
+
+    // Extra pool of realistic generated clips when user clicks "Generate"
+    const generatedClipPool = [
+      {
+        title: 'The Hidden Mistake Killing Your Live Stream Retention Rate',
+        score: 97,
+        startTime: '00:08:14',
+        endTime: '00:08:42',
+        duration: '28s',
+        hookReason: 'Curiosity gap + direct viewer callout',
+        transcript: "Never spend the first ninety seconds saying hello to chat. Drop straight into the highest-stakes story and let the replay viewers get hooked immediately.",
+        gradient: 'from-rose-950 via-indigo-950 to-zinc-950',
+        accentColor: '#fb7185',
+        speakerTag: 'Speaker A • Face Locked'
+      },
+      {
+        title: 'Why Real-Time Whisper Transcription Changes Everything',
+        score: 95,
+        startTime: '00:26:49',
+        endTime: '00:27:16',
+        duration: '27s',
+        hookReason: 'Tech breakthrough insight + fast pacing',
+        transcript: "Sub-second word timestamps mean captions don't just sit on screen—they punch on every stressed syllable like a human editor spent hours keyframing.",
+        gradient: 'from-indigo-950 via-sky-950 to-zinc-950',
+        accentColor: '#38bdf8',
+        speakerTag: 'Speaker B • Face Locked'
+      },
+      {
+        title: 'Zero-Budget Setup That Looks Like a $50,000 Studio',
+        score: 92,
+        startTime: '01:05:11',
+        endTime: '01:05:39',
+        duration: '28s',
+        hookReason: 'High shareability + strong contrast framing',
+        transcript: "Turn off every overhead light in your room, place one soft key light at 45 degrees, and suddenly a basic webcam looks like cinema.",
+        gradient: 'from-amber-950/80 via-zinc-900 to-zinc-950',
+        accentColor: '#fbbf24',
+        speakerTag: 'Speaker A • Face Locked'
+      },
+      {
+        title: 'What Happens When AI Agents Watch Live Gaming & Podcasts',
+        score: 89,
+        startTime: '01:44:02',
+        endTime: '01:44:30',
+        duration: '28s',
+        hookReason: 'Futuristic prediction + high sentiment score',
+        transcript: "By detecting laughter, chat velocity spikes, and vocal pitch shifts simultaneously, the model knows a clip is viral before you even finish streaming.",
+        gradient: 'from-emerald-950 via-indigo-950 to-zinc-950',
+        accentColor: '#34d399',
+        speakerTag: 'Speaker A • Face Locked'
+      },
+      {
+        title: 'Stop Over-Editing: Why Raw Authentic Moments Win the Algorithm',
+        score: 87,
+        startTime: '01:58:19',
+        endTime: '01:58:44',
+        duration: '25s',
+        hookReason: 'Relatable creator pain point + punchy close',
+        transcript: "Audiences can smell over-scripted content in half a second. Keep the unscripted reaction, tighten the dead air, and let the emotion carry the clip.",
+        gradient: 'from-purple-950 via-zinc-900 to-zinc-950',
+        accentColor: '#a78bfa',
+        speakerTag: 'Speaker B • Face Locked'
+      }
+    ];
+
+    // Initialize Icons & Render Gallery on Load
+    document.addEventListener('DOMContentLoaded', () => {
+      hydrateFromUrlParams();
+      lucide.createIcons();
+      renderClipsGallery();
+
+      // Listen for URL typing
+      const urlInput = document.getElementById('streamUrlInput');
+      urlInput.addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        const previewCard = document.getElementById('urlPreviewCard');
+        if (val.length > 8) {
+          previewCard.classList.remove('hidden');
+          document.getElementById('urlPreviewTitle').textContent =
+            val.includes('youtube') || val.includes('youtu.be')
+              ? 'Live Stream VOD • Detected 1080p60 Source Stream'
+              : `Stream Source: ${val.slice(0, 48)}...`;
+        } else {
+          previewCard.classList.add('hidden');
+        }
+      });
+
+      // Setup Drag & Drop events
+      const dropZone = document.getElementById('dropZone');
+      ['dragenter', 'dragover'].forEach(evt => {
+        dropZone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          dropZone.classList.add('border-indigo-500', 'bg-indigo-950/20');
+        });
+      });
+      ['dragleave', 'drop'].forEach(evt => {
+        dropZone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('border-indigo-500', 'bg-indigo-950/20');
+        });
+      });
+      dropZone.addEventListener('drop', (e) => {
+        const file = e.dataTransfer.files[0];
+        if (file) setUploadedFileUI(file);
+      });
+    });
+
+    // Switch Input Tabs (URL vs Upload)
+    function switchInputTab(mode) {
+      state.inputMode = mode;
+      const tabUrlBtn = document.getElementById('tabUrlBtn');
+      const tabUploadBtn = document.getElementById('tabUploadBtn');
+      const urlPanel = document.getElementById('urlInputPanel');
+      const uploadPanel = document.getElementById('uploadInputPanel');
+
+      if (mode === 'url') {
+        tabUrlBtn.className = 'flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-indigo-600 text-white shadow-md shadow-indigo-600/25';
+        tabUploadBtn.className = 'flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all text-zinc-400 hover:text-white';
+        urlPanel.classList.remove('hidden');
+        uploadPanel.classList.add('hidden');
+      } else {
+        tabUploadBtn.className = 'flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-indigo-600 text-white shadow-md shadow-indigo-600/25';
+        tabUrlBtn.className = 'flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all text-zinc-400 hover:text-white';
+        uploadPanel.classList.remove('hidden');
+        urlPanel.classList.add('hidden');
+      }
+    }
+
+    // Fill Sample Stream URL
+    function fillSampleUrl() {
+      const sample = 'https://www.youtube.com/watch?v=liveclip_ai_podcast_4k';
+      const input = document.getElementById('streamUrlInput');
+      input.value = sample;
+      document.getElementById('urlPreviewTitle').textContent = 'AI Founders Live Summit 2026 — Full 2hr Keynote & Q&A';
+      document.getElementById('urlPreviewCard').classList.remove('hidden');
+      showToast('Sample stream URL loaded into Colab pipeline', 'info');
+    }
+
+    function clearUrlInput() {
+      document.getElementById('streamUrlInput').value = '';
+      document.getElementById('urlPreviewCard').classList.add('hidden');
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) setUploadedFileUI(file);
+    }
+
+    function setUploadedFileUI(file) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      document.getElementById('dropZoneTitle').textContent = file.name;
+      document.getElementById('dropZoneSubtitle').textContent = `Ready for GPU ingest • ${sizeMB} MB • Local Buffer Mounted`;
+      showToast(`Mounted "${file.name}" (${sizeMB} MB)`, 'success');
+    }
+
+    // Configuration Selectors
+    function selectDuration(preset, btnEl) {
+      state.durationPreset = preset;
+      document.querySelectorAll('.duration-btn').forEach(btn => {
+        btn.className = 'duration-btn p-2.5 rounded-xl bg-zinc-950/80 border border-white/10 hover:border-white/25 text-left transition-all';
+        btn.querySelector('div:first-child').className = 'text-xs font-bold text-zinc-200';
+        btn.querySelector('div:last-child').className = 'text-[11px] font-mono text-zinc-400 mt-0.5';
+      });
+      btnEl.className = 'duration-btn active p-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500 text-left transition-all';
+      btnEl.querySelector('div:first-child').className = 'text-xs font-bold text-white';
+      btnEl.querySelector('div:last-child').className = 'text-[11px] font-mono text-indigo-300 mt-0.5';
+    }
+
+    function selectAspect(ratio, btnEl) {
+      state.aspectRatio = ratio;
+      document.querySelectorAll('.aspect-btn').forEach(btn => {
+        btn.className = 'aspect-btn p-3 rounded-xl bg-zinc-950/80 border border-white/10 hover:border-white/25 flex flex-col items-center justify-center gap-2 transition-all';
+        btn.querySelector('div:first-child').classList.remove('border-indigo-400', 'bg-indigo-500/20');
+        btn.querySelector('div:first-child').classList.add('border-zinc-400', 'bg-zinc-800');
+      });
+      btnEl.className = 'aspect-btn active p-3 rounded-xl bg-indigo-600/20 border border-indigo-500 flex flex-col items-center justify-center gap-2 transition-all';
+      btnEl.querySelector('div:first-child').classList.remove('border-zinc-400', 'bg-zinc-800');
+      btnEl.querySelector('div:first-child').classList.add('border-indigo-400', 'bg-indigo-500/20');
+      renderClipsGallery();
+    }
+
+    function updateClipCount(val) {
+      state.clipCount = parseInt(val, 10);
+      document.getElementById('clipCountValue').textContent = `${val} ${val == 1 ? 'Clip' : 'Clips'}`;
+    }
+
+    function toggleCaptionStyleBox() {
+      state.captionsEnabled = document.getElementById('toggleCaptions').checked;
+      const box = document.getElementById('captionStyleContainer');
+      box.style.opacity = state.captionsEnabled ? '1' : '0.4';
+      box.style.pointerEvents = state.captionsEnabled ? 'auto' : 'none';
+      renderClipsGallery();
+    }
+
+    function selectCaptionStyle(styleName, btnEl) {
+      state.captionStyle = styleName;
+      document.querySelectorAll('.cap-style-btn').forEach(btn => {
+        btn.className = 'cap-style-btn py-1.5 px-2 rounded-lg bg-zinc-900 text-zinc-300 hover:text-white text-[11px] font-medium transition-all';
+      });
+      btnEl.className = 'cap-style-btn active py-1.5 px-2 rounded-lg bg-indigo-600 text-white text-[11px] font-bold tracking-tight transition-all';
+      renderClipsGallery();
+    }
+
+    function resetSettings() {
+      state.durationPreset = '15-30s';
+      state.aspectRatio = '9:16';
+      state.clipCount = 3;
+      state.captionsEnabled = true;
+      state.captionStyle = 'hormozi';
+      document.getElementById('clipCountSlider').value = 3;
+      updateClipCount(3);
+      document.getElementById('toggleCaptions').checked = true;
+      document.getElementById('toggleFaceTrack').checked = true;
+      document.getElementById('toggleHookDetect').checked = true;
+      document.getElementById('toggleSilence').checked = false;
+      toggleCaptionStyleBox();
+      showToast('AI settings restored to recommended defaults', 'info');
+    }
+
+    // Terminal Logging Helper
+    function appendLog(message, colorClass = 'text-zinc-300') {
+      const terminal = document.getElementById('terminalLog');
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0];
+      const line = document.createElement('div');
+      line.className = `${colorClass} animate-pop`;
+      line.textContent = `[${timeStr}] ${message}`;
+      terminal.appendChild(line);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function clearTerminal() {
+      document.getElementById('terminalLog').innerHTML =
+        '<div class="text-zinc-500">[system] Terminal buffer cleared. Ready for execution.</div>';
+    }
+
+    // Multi-Stage AI Clipping Simulation
+    async function startGeneration() {
+      if (state.isGenerating) return;
+
+      // Auto-fill sample URL if empty so user always experiences smooth flow
+      const urlVal = document.getElementById('streamUrlInput').value.trim();
+      if (state.inputMode === 'url' && !urlVal) {
+        fillSampleUrl();
+      }
+
+      state.isGenerating = true;
+      const btn = document.getElementById('generateBtn');
+      const btnText = document.getElementById('generateBtnText');
+      const spinner = document.getElementById('statusSpinner');
+      const progressFill = document.getElementById('progressBarFill');
+      const progressText = document.getElementById('progressPercent');
+
+      btn.disabled = true;
+      btn.classList.add('opacity-75', 'cursor-not-allowed');
+      btnText.textContent = 'Running Colab Pipeline...';
+      spinner.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping';
+
+      // Reset stage pills
+      [1, 2, 3, 4].forEach(i => {
+        const pill = document.getElementById(`step-${i}`);
+        pill.className = 'step-pill p-2.5 rounded-xl bg-zinc-950/80 border border-white/[0.06] transition-all opacity-60';
+      });
+
+      const stages = [
+        {
+          step: 1,
+          pct: 25,
+          label: 'INGESTING • 25%',
+          logs: [
+            { msg: 'Initializing yt-dlp stream extractor with aria2c 16-thread acceleration...', cls: 'text-indigo-300' },
+            { msg: 'Downloaded audio/video stream (1080p60, AAC 192kbps) to /content/liveclip/raw.mp4', cls: 'text-emerald-400' }
+          ]
+        },
+        {
+          step: 2,
+          pct: 52,
+          label: 'TRANSCRIBING • 52%',
+          logs: [
+            { msg: 'Running faster-whisper large-v3 on CUDA (float16) with VAD filter...', cls: 'text-indigo-300' },
+            { msg: 'Extracted 1,842 word-level timestamps with 99.1% confidence.', cls: 'text-emerald-400' }
+          ]
+        },
+        {
+          step: 3,
+          pct: 78,
+          label: 'SCORING HOOKS • 78%',
+          logs: [
+            { msg: `Analyzing semantic hooks & audio energy peaks for top ${state.clipCount} segments (${state.durationPreset})...`, cls: 'text-indigo-300' },
+            { msg: `Ranked candidate clips. Top viral hook score: 98/100.`, cls: 'text-emerald-400' }
+          ]
+        },
+        {
+          step: 4,
+          pct: 100,
+          label: 'RENDERING • 100%',
+          logs: [
+            { msg: `Applying YOLOv8 face-tracking crop (${state.aspectRatio}) & ${state.captionStyle.toUpperCase()} subtitles...`, cls: 'text-indigo-300' },
+            { msg: `✓ Successfully exported ${state.clipCount} ready-to-post MP4 clips via NVENC!`, cls: 'text-emerald-400 font-semibold' }
+          ]
+        }
+      ];
+
+      for (const stage of stages) {
+        const pill = document.getElementById(`step-${stage.step}`);
+        pill.className = 'step-pill p-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500 transition-all opacity-100';
+        progressFill.style.width = `${stage.pct}%`;
+        progressText.textContent = stage.label;
+
+        for (const log of stage.logs) {
+          appendLog(log.msg, log.cls);
+          await sleep(650);
+        }
+
+        pill.className = 'step-pill p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 transition-all opacity-100';
+      }
+
+      // Build New Clips List based on requested count
+      const combinedPool = [...generatedClipPool, ...clipsData];
+      const newClips = [];
+      for (let i = 0; i < state.clipCount; i++) {
+        const template = combinedPool[i % combinedPool.length];
+        newClips.push({
+          ...template,
+          id: `clip-gen-${Date.now()}-${i}`,
+          score: Math.max(84, 98 - i * 2)
+        });
+      }
+      clipsData = newClips;
+      renderClipsGallery();
+
+      // Restore Button State
+      state.isGenerating = false;
+      btn.disabled = false;
+      btn.classList.remove('opacity-75', 'cursor-not-allowed');
+      btnText.textContent = 'Generate Viral Clips';
+      spinner.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+      progressText.textContent = 'COMPLETE • 100%';
+
+      showToast(`Generated ${state.clipCount} viral clips ready for preview!`, 'success');
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // Render Generated Clips Gallery
+    function renderClipsGallery() {
+      const grid = document.getElementById('clipsGalleryGrid');
+      const badge = document.getElementById('galleryCountBadge');
+      badge.textContent = `${clipsData.length} Ready`;
+
+      // Stop any running caption animations before re-render
+      Object.values(state.captionIntervals).forEach(clearInterval);
+      state.captionIntervals = {};
+      state.playingClipId = null;
+
+      grid.innerHTML = clipsData.map((clip, index) => {
+        const scoreColor = clip.score >= 95
+          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+          : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40';
+
+        // Aspect ratio container styling inside card preview
+        let previewFrameClass = 'aspect-[9/14] max-h-[340px] mx-auto w-full';
+        if (state.aspectRatio === '16:9') previewFrameClass = 'aspect-video w-full';
+        if (state.aspectRatio === '1:1') previewFrameClass = 'aspect-square max-h-[300px] mx-auto w-full';
+
+        // Caption styling class
+        let captionClass = 'caption-hormozi text-white text-base sm:text-lg';
+        if (state.captionStyle === 'minimal') captionClass = 'caption-minimal text-zinc-100 text-xs sm:text-sm';
+        if (state.captionStyle === 'neon') captionClass = 'caption-neon text-base sm:text-lg';
+
+        const words = clip.transcript.split(' ');
+        const initialChunk = words.slice(0, 5).join(' ');
+
+        return `
+          <article class="glass-card glass-card-hover rounded-2xl overflow-hidden flex flex-col justify-between">
+            <div>
+              <!-- Card Top Header -->
+              <div class="p-4 pb-3 flex items-center justify-between gap-2">
+                <span class="px-2.5 py-1 rounded-full border text-xs font-mono font-bold flex items-center gap-1.5 ${scoreColor}">
+                  <i data-lucide="flame" class="w-3.5 h-3.5"></i>
+                  ${clip.score}/100 Viral Score
+                </span>
+                <span class="text-[11px] font-mono text-zinc-400 bg-zinc-950/90 px-2.5 py-1 rounded-lg border border-white/[0.06]">
+                  ${clip.startTime} – ${clip.endTime}
+                </span>
+              </div>
+
+              <!-- Interactive Simulated Video Player Frame -->
+              <div class="px-4">
+                <div onclick="toggleClipPlayback('${clip.id}')"
+                     class="relative rounded-xl overflow-hidden bg-zinc-950 border border-white/10 cursor-pointer group ${previewFrameClass}">
+                  
+                  <!-- Simulated Dynamic Video Visual -->
+                  <div id="bg-${clip.id}" class="absolute inset-0 bg-gradient-to-br ${clip.gradient} transition-transform duration-700">
+                    <!-- Subtle Studio Grid & Face-Tracking Bounding Box -->
+                    <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.25) 1px, transparent 0); background-size: 20px 20px;"></div>
+                    
+                    <!-- Simulated Speaker Silhouette + YOLOv8 Face Track Box -->
+                    <div class="absolute inset-0 flex items-center justify-center">
+                      <div class="relative w-28 h-32 rounded-2xl border border-dashed border-emerald-400/50 flex flex-col items-center justify-between p-2">
+                        <span class="self-start text-[9px] font-mono bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">
+                          FACE 0.99
+                        </span>
+                        <div class="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
+                          <i data-lucide="user" class="w-6 h-6 text-white/70"></i>
+                        </div>
+                        <span class="text-[9px] font-mono text-zinc-400">${state.aspectRatio} CROP</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Top Overlay Badges -->
+                  <div class="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none">
+                    <span class="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-[10px] font-mono text-zinc-200 border border-white/10">
+                      #${index + 1} • ${clip.duration}
+                    </span>
+                    <span id="playStatus-${clip.id}" class="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-[10px] font-mono text-indigo-300 border border-white/10">
+                      PREVIEW
+                    </span>
+                  </div>
+
+                  <!-- Center Play/Pause Button Overlay -->
+                  <div id="playBtnOverlay-${clip.id}" class="absolute inset-0 flex items-center justify-center bg-black/25 group-hover:bg-black/15 transition-all">
+                    <div class="w-12 h-12 rounded-full bg-indigo-600/90 group-hover:bg-indigo-500 text-white flex items-center justify-center shadow-xl shadow-indigo-600/40 group-hover:scale-110 transition-all">
+                      <i data-lucide="play" class="w-5 h-5 fill-current ml-0.5"></i>
+                    </div>
+                  </div>
+
+                  <!-- Animated AI Captions Overlay -->
+                  ${state.captionsEnabled ? `
+                    <div class="absolute bottom-4 left-3 right-3 text-center pointer-events-none">
+                      <span id="captionText-${clip.id}" class="inline-block leading-tight transition-all duration-150 ${captionClass}">
+                        ${initialChunk}
+                      </span>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+
+              <!-- Clip Title & AI Hook Insight -->
+              <div class="p-4 space-y-2.5">
+                <h3 class="text-sm font-bold text-white leading-snug line-clamp-2">
+                  ${clip.title}
+                </h3>
+
+                <div class="flex items-start gap-1.5 text-[11px] text-emerald-300/90 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2.5 py-1.5">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>
+                  <span>${clip.hookReason}</span>
+                </div>
+
+                <p class="text-xs text-zinc-400 line-clamp-3 leading-relaxed bg-zinc-950/60 p-2.5 rounded-xl border border-white/[0.05]">
+                  "${clip.transcript}"
+                </p>
+              </div>
+            </div>
+
+            <!-- Card Footer Actions -->
+            <div class="px-4 pb-4 pt-1 flex items-center gap-2">
+              <button onclick="openEditModal('${clip.id}')"
+                class="flex-1 py-2 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-xs font-medium text-zinc-200 flex items-center justify-center gap-1.5 transition-colors">
+                <i data-lucide="pencil" class="w-3.5 h-3.5 text-indigo-400"></i>
+                Edit Captions
+              </button>
+              <button onclick="downloadClip('${clip.id}')"
+                class="flex-1 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-md shadow-indigo-600/25 flex items-center justify-center gap-1.5 transition-colors">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                Download MP4
+              </button>
+            </div>
+          </article>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    // Simulated Video Playback with Word-by-Word Animated Captions
+    function toggleClipPlayback(clipId) {
+      const clip = clipsData.find(c => c.id === clipId);
+      if (!clip) return;
+
+      // If already playing this clip, stop it
+      if (state.playingClipId === clipId) {
+        stopClipPlayback(clipId);
+        return;
+      }
+
+      // Stop any other playing clip first
+      if (state.playingClipId) {
+        stopClipPlayback(state.playingClipId);
+      }
+
+      state.playingClipId = clipId;
+      const bgEl = document.getElementById(`bg-${clipId}`);
+      const overlayEl = document.getElementById(`playBtnOverlay-${clipId}`);
+      const statusEl = document.getElementById(`playStatus-${clipId}`);
+      const captionEl = document.getElementById(`captionText-${clipId}`);
+
+      if (bgEl) bgEl.classList.add('animate-video-pan');
+      if (overlayEl) overlayEl.classList.add('opacity-0');
+      if (statusEl) {
+        statusEl.textContent = '● PLAYING';
+        statusEl.className = 'px-2 py-0.5 rounded-md bg-emerald-500/20 backdrop-blur-md text-[10px] font-mono text-emerald-300 border border-emerald-500/40';
+      }
+
+      // Cycle transcript chunks every 950ms
+      const words = clip.transcript.split(' ');
+      let wordIndex = 0;
+
+      if (captionEl) {
+        state.captionIntervals[clipId] = setInterval(() => {
+          const chunk = words.slice(wordIndex, wordIndex + 4).join(' ');
+          captionEl.textContent = chunk;
+          captionEl.style.transform = 'scale(1.06)';
+          setTimeout(() => {
+            if (captionEl) captionEl.style.transform = 'scale(1)';
+          }, 120);
+
+          wordIndex += 4;
+          if (wordIndex >= words.length) {
+            wordIndex = 0;
+          }
+        }, 950);
+      }
+    }
+
+    function stopClipPlayback(clipId) {
+      clearInterval(state.captionIntervals[clipId]);
+      delete state.captionIntervals[clipId];
+      if (state.playingClipId === clipId) state.playingClipId = null;
+
+      const bgEl = document.getElementById(`bg-${clipId}`);
+      const overlayEl = document.getElementById(`playBtnOverlay-${clipId}`);
+      const statusEl = document.getElementById(`playStatus-${clipId}`);
+
+      if (bgEl) bgEl.classList.remove('animate-video-pan');
+      if (overlayEl) overlayEl.classList.remove('opacity-0');
+      if (statusEl) {
+        statusEl.textContent = 'PREVIEW';
+        statusEl.className = 'px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-[10px] font-mono text-indigo-300 border border-white/10';
+      }
+    }
+
+    // Edit Captions Modal Actions
+    function openEditModal(clipId) {
+      const clip = clipsData.find(c => c.id === clipId);
+      if (!clip) return;
+
+      state.editingClipId = clipId;
+      document.getElementById('editTitleInput').value = clip.title;
+      document.getElementById('editTranscriptInput').value = clip.transcript;
+
+      const modal = document.getElementById('editModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeEditModal() {
+      const modal = document.getElementById('editModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      state.editingClipId = null;
+    }
+
+    function saveClipEdits() {
+      if (!state.editingClipId) return;
+      const clip = clipsData.find(c => c.id === state.editingClipId);
+      if (clip) {
+        clip.title = document.getElementById('editTitleInput').value.trim() || clip.title;
+        clip.transcript = document.getElementById('editTranscriptInput').value.trim() || clip.transcript;
+        renderClipsGallery();
+        showToast('Captions & title updated and re-synced!', 'success');
+      }
+      closeEditModal();
+    }
+
+    // Sorting & Mock Export Actions
+    function sortClipsByScore() {
+      clipsData.sort((a, b) => b.score - a.score);
+      renderClipsGallery();
+      showToast('Sorted clips by highest AI Viral Score', 'info');
+    }
+
+    function downloadClip(clipId) {
+      const clip = clipsData.find(c => c.id === clipId);
+      if (!clip) return;
+      const safeName = clip.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 28);
+      showToast(`Exporting "${safeName}_${state.aspectRatio.replace(':', 'x')}.mp4"...`, 'success');
+      appendLog(`Exported MP4 render: ${safeName}.mp4 (${state.aspectRatio}, H.264 60fps)`, 'text-emerald-400');
+    }
+
+    function downloadAllClips() {
+      showToast(`Bundling ${clipsData.length} MP4 clips into LiveClip_Export_Pack.zip...`, 'success');
+      appendLog(`Created archive LiveClip_Export_Pack.zip (${clipsData.length} files)`, 'text-indigo-400');
+    }
+
+    // Toast Notification Utility
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+
+      const colors = type === 'success'
+        ? 'bg-zinc-900/95 border-emerald-500/40 text-emerald-200'
+        : 'bg-zinc-900/95 border-indigo-500/40 text-indigo-200';
+
+      const iconName = type === 'success' ? 'check-circle-2' : 'sparkles';
+      const iconColor = type === 'success' ? 'text-emerald-400' : 'text-indigo-400';
+
+      toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-2xl backdrop-blur-xl text-xs font-medium animate-pop ${colors}`;
+      toast.innerHTML = `
+        <i data-lucide="${iconName}" class="w-4 h-4 shrink-0 ${iconColor}"></i>
+        <span>${message}</span>
+      `;
+
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(6px)';
+        toast.style.transition = 'all 0.25s ease';
+        setTimeout(() => toast.remove(), 250);
+      }, 3200);
+    }
+
+    // ==========================================
+    // Share & Export Feature Logic
+    // ==========================================
+    let currentConfigFormat = 'json';
+    const COLAB_NOTEBOOK_URL = 'https://colab.research.google.com/github/Aadi1659/liveclip/blob/main/liveclip_colab.ipynb?utm_source=sp_auto_dm&utm_referrer=sp_auto_dm#scrollTo=POWjp1bBAOM';
+
+    function openShareExportModal() {
+      syncCurrentStateFromDOM();
+      updateShareUrlsAndConfig();
+      const modal = document.getElementById('shareExportModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      lucide.createIcons();
+    }
+
+    function closeShareExportModal() {
+      const modal = document.getElementById('shareExportModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function switchShareTab(tab) {
+      const tabs = ['link', 'html', 'config'];
+      tabs.forEach(t => {
+        const panel = document.getElementById(`sharePanel${t.charAt(0).toUpperCase() + t.slice(1)}`);
+        const btn = document.getElementById(`shareTab${t.charAt(0).toUpperCase() + t.slice(1)}Btn`);
+        if (t === tab) {
+          panel.classList.remove('hidden');
+          btn.className = 'share-tab-btn px-3.5 py-2.5 text-xs font-semibold border-b-2 border-indigo-500 text-white flex items-center gap-1.5 whitespace-nowrap transition-all';
+        } else {
+          panel.classList.add('hidden');
+          btn.className = 'share-tab-btn px-3.5 py-2.5 text-xs font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 whitespace-nowrap transition-all';
+        }
+      });
+      if (tab === 'config') updateShareUrlsAndConfig();
+    }
+
+    function syncCurrentStateFromDOM() {
+      state.captionsEnabled = document.getElementById('toggleCaptions').checked;
+      state.faceTracking = document.getElementById('toggleFaceTrack').checked;
+      state.hookDetection = document.getElementById('toggleHookDetect').checked;
+      state.silenceRemoval = document.getElementById('toggleSilence').checked;
+    }
+
+    function buildPresetShareUrl() {
+      syncCurrentStateFromDOM();
+      const params = new URLSearchParams();
+      params.set('duration', state.durationPreset);
+      params.set('ratio', state.aspectRatio);
+      params.set('clips', state.clipCount);
+      params.set('caption', state.captionsEnabled ? state.captionStyle : 'off');
+      params.set('face_track', state.faceTracking ? '1' : '0');
+      params.set('hook_detect', state.hookDetection ? '1' : '0');
+      params.set('silence_trim', state.silenceRemoval ? '1' : '0');
+
+      const srcUrl = document.getElementById('streamUrlInput').value.trim();
+      if (srcUrl) params.set('source', srcUrl);
+
+      const baseUrl = window.location.href.split('?')[0].split('#')[0];
+      return `${baseUrl}?${params.toString()}`;
+    }
+
+    function buildConfigObject() {
+      syncCurrentStateFromDOM();
+      return {
+        project: 'LiveClip Studio AI',
+        colab_notebook: COLAB_NOTEBOOK_URL,
+        source_url: document.getElementById('streamUrlInput').value.trim() || 'https://www.youtube.com/watch?v=liveclip_ai_podcast_4k',
+        clip_settings: {
+          target_duration: state.durationPreset,
+          aspect_ratio: state.aspectRatio,
+          max_clips: state.clipCount
+        },
+        ai_pipeline: {
+          whisper_model: 'large-v3',
+          dynamic_captions: state.captionsEnabled,
+          caption_style: state.captionStyle,
+          smart_face_tracking: state.faceTracking,
+          viral_hook_detection: state.hookDetection,
+          auto_silence_removal: state.silenceRemoval
+        }
+      };
+    }
+
+    function formatConfigOutput(format) {
+      const cfg = buildConfigObject();
+      if (format === 'json') {
+        return JSON.stringify(cfg, null, 2);
+      }
+      return `# Paste into your LiveClip Google Colab cell\nLIVECLIP_CONFIG = {\n    "source_url": "${cfg.source_url}",\n    "target_duration": "${cfg.clip_settings.target_duration}",\n    "aspect_ratio": "${cfg.clip_settings.aspect_ratio}",\n    "max_clips": ${cfg.clip_settings.max_clips},\n    "dynamic_captions": ${cfg.ai_pipeline.dynamic_captions ? 'True' : 'False'},\n    "caption_style": "${cfg.ai_pipeline.caption_style}",\n    "smart_face_tracking": ${cfg.ai_pipeline.smart_face_tracking ? 'True' : 'False'},\n    "viral_hook_detection": ${cfg.ai_pipeline.viral_hook_detection ? 'True' : 'False'},\n    "auto_silence_removal": ${cfg.ai_pipeline.auto_silence_removal ? 'True' : 'False'}\n}`;
+    }
+
+    function updateShareUrlsAndConfig() {
+      const presetInput = document.getElementById('presetShareUrlInput');
+      if (presetInput) presetInput.value = buildPresetShareUrl();
+      const preview = document.getElementById('exportedConfigPreview');
+      if (preview) preview.textContent = formatConfigOutput(currentConfigFormat);
+    }
+
+    function switchConfigFormat(format) {
+      currentConfigFormat = format;
+      const jsonBtn = document.getElementById('cfgFormatJsonBtn');
+      const pyBtn = document.getElementById('cfgFormatPyBtn');
+      if (format === 'json') {
+        jsonBtn.className = 'px-3 py-1 rounded-md bg-indigo-600 text-white text-xs font-semibold transition-all';
+        pyBtn.className = 'px-3 py-1 rounded-md text-zinc-400 hover:text-white text-xs font-medium transition-all';
+      } else {
+        pyBtn.className = 'px-3 py-1 rounded-md bg-indigo-600 text-white text-xs font-semibold transition-all';
+        jsonBtn.className = 'px-3 py-1 rounded-md text-zinc-400 hover:text-white text-xs font-medium transition-all';
+      }
+      updateShareUrlsAndConfig();
+    }
+
+    function copyTextToClipboard(text, successMessage) {
+      const tempArea = document.createElement('textarea');
+      tempArea.value = text;
+      tempArea.style.position = 'fixed';
+      tempArea.style.opacity = '0';
+      document.body.appendChild(tempArea);
+      tempArea.select();
+      try {
+        document.execCommand('copy');
+        showToast(successMessage, 'success');
+      } catch (err) {
+        showToast('Unable to copy automatically — please copy manually.', 'info');
+      }
+      document.body.removeChild(tempArea);
+    }
+
+    function copyFieldText(inputId, successMessage) {
+      const el = document.getElementById(inputId);
+      if (el) copyTextToClipboard(el.value, successMessage);
+    }
+
+    function copyExportedConfig() {
+      const content = formatConfigOutput(currentConfigFormat);
+      const label = currentConfigFormat === 'json' ? 'liveclip_config.json copied!' : 'Colab Python config copied!';
+      copyTextToClipboard(content, label);
+    }
+
+    function triggerBlobDownload(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadJsonConfig() {
+      const jsonContent = formatConfigOutput('json');
+      triggerBlobDownload(jsonContent, 'liveclip_config.json', 'application/json');
+      showToast('Downloaded liveclip_config.json', 'success');
+    }
+
+    function getCleanStandaloneHtml() {
+      const clone = document.documentElement.cloneNode(true);
+      const modal = clone.querySelector('#shareExportModal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+      return '<!DOCTYPE html>\n' + clone.outerHTML;
+    }
+
+    function downloadStandaloneHtml() {
+      const htmlString = getCleanStandaloneHtml();
+      triggerBlobDownload(htmlString, 'liveclip-studio.html', 'text/html');
+      showToast('Downloaded standalone liveclip-studio.html!', 'success');
+    }
+
+    function copyStandaloneHtml() {
+      const htmlString = getCleanStandaloneHtml();
+      copyTextToClipboard(htmlString, 'Full standalone HTML source copied to clipboard!');
+    }
+
+    function shareViaNative() {
+      const shareUrl = buildPresetShareUrl();
+      if (navigator.share) {
+        navigator.share({
+          title: 'LiveClip — AI Stream & Video Clipping Studio',
+          text: 'Check out my LiveClip AI clipping preset and Colab workflow:',
+          url: shareUrl
+        }).catch(() => {});
+      } else {
+        copyTextToClipboard(shareUrl, 'Shareable preset link copied to clipboard!');
+      }
+    }
+
+    function shareViaWhatsApp() {
+      const text = encodeURIComponent(`Check out LiveClip Studio AI & Colab workflow:\n${COLAB_NOTEBOOK_URL}`);
+      window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer');
+    }
+
+    function shareViaTelegram() {
+      const url = encodeURIComponent(COLAB_NOTEBOOK_URL);
+      const text = encodeURIComponent('LiveClip Studio AI — Autonomous Stream & Video Clipper');
+      window.open(`https://t.me/share/url?url=${url}&text=${text}`, '_blank', 'noopener,noreferrer');
+    }
+
+    // Hydrate UI controls if opened via a Shareable Preset URL (?duration=...&ratio=...)
+    function hydrateFromUrlParams() {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.toString()) return;
+
+      const duration = params.get('duration');
+      if (duration) {
+        document.querySelectorAll('.duration-btn').forEach(btn => {
+          if (btn.getAttribute('onclick')?.includes(duration)) selectDuration(duration, btn);
+        });
+      }
+
+      const ratio = params.get('ratio');
+      if (ratio) {
+        document.querySelectorAll('.aspect-btn').forEach(btn => {
+          if (btn.getAttribute('onclick')?.includes(ratio)) selectAspect(ratio, btn);
+        });
+      }
+
+      const clips = params.get('clips');
+      if (clips) {
+        const slider = document.getElementById('clipCountSlider');
+        slider.value = clips;
+        updateClipCount(clips);
+      }
+
+      const caption = params.get('caption');
+      if (caption) {
+        const toggle = document.getElementById('toggleCaptions');
+        if (caption === 'off') {
+          toggle.checked = false;
+          toggleCaptionStyleBox();
+        } else {
+          toggle.checked = true;
+          toggleCaptionStyleBox();
+          document.querySelectorAll('.cap-style-btn').forEach(btn => {
+            if (btn.getAttribute('onclick')?.includes(caption)) selectCaptionStyle(caption, btn);
+          });
+        }
+      }
+
+      if (params.has('face_track')) document.getElementById('toggleFaceTrack').checked = params.get('face_track') === '1';
+      if (params.has('hook_detect')) document.getElementById('toggleHookDetect').checked = params.get('hook_detect') === '1';
+      if (params.has('silence_trim')) document.getElementById('toggleSilence').checked = params.get('silence_trim') === '1';
+
+      const source = params.get('source');
+      if (source) {
+        const input = document.getElementById('streamUrlInput');
+        input.value = source;
+        document.getElementById('urlPreviewCard').classList.remove('hidden');
+      }
+
+      showToast('Loaded shared LiveClip AI preset from URL!', 'success');
+    }
+  </script>
+</body>
+</html>
