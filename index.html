@@ -145,12 +145,13 @@
 
     /* Simulated Video Motion Background */
     @keyframes videoPan {
-      0% { transform: scale(1.06) translate(0px, 0px); }
-      50% { transform: scale(1.12) translate(-10px, -6px); }
-      100% { transform: scale(1.06) translate(0px, 0px); }
+      0% { transform: scale(1.08) translate(0px, 0px); }
+      50% { transform: scale(1.2) translate(-24px, -14px); }
+      100% { transform: scale(1.08) translate(0px, 0px); }
     }
     .animate-video-pan {
-      animation: videoPan 9s ease-in-out infinite;
+      animation: videoPan 7s ease-in-out infinite;
+      will-change: transform;
     }
 
     /* Custom Scrollbar */
@@ -309,7 +310,7 @@
                 <p id="urlPreviewTitle" class="text-xs font-semibold text-white truncate">Lex Fridman Podcast #419 — Sam Altman: OpenAI, GPT-5 & AGI</p>
                 <div class="flex items-center gap-3 mt-1 text-[11px] font-mono text-zinc-400">
                   <span>1080p60 • H.264</span>
-                  <span>Duration: 02:14:38</span>
+                  <span id="urlPreviewDuration">Duration: —</span>
                   <span class="text-emerald-400">Stream Ready</span>
                 </div>
               </div>
@@ -985,6 +986,9 @@
             val.includes('youtube') || val.includes('youtu.be')
               ? 'Live Stream VOD • Detected 1080p60 Source Stream'
               : `Stream Source: ${val.slice(0, 48)}...`;
+          // Detect the real title + duration for YouTube links
+          const ytId = extractYouTubeId(val);
+          if (ytId) fetchYouTubeMeta(ytId);
         } else {
           previewCard.classList.add('hidden');
         }
@@ -1037,8 +1041,51 @@
       const input = document.getElementById('streamUrlInput');
       input.value = sample;
       document.getElementById('urlPreviewTitle').textContent = 'AI Founders Live Summit 2026 — Full 2hr Keynote & Q&A';
+      document.getElementById('urlPreviewDuration').textContent = 'Duration: 02:14:38';
       document.getElementById('urlPreviewCard').classList.remove('hidden');
       showToast('Sample stream URL loaded into Colab pipeline', 'info');
+    }
+
+    // Detect the real YouTube title + duration for a pasted URL.
+    // The preview card used to show a hardcoded "02:14:38" for every video.
+    // Uses the public no-key YouTube metadata API; falls back to "—" if it fails.
+    function extractYouTubeId(url) {
+      const m = url.match(/(?:youtube\.com\/(?:watch\?v=|live\/|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])/);
+      return m ? m[1] : null;
+    }
+
+    function parseIsoDuration(iso) {
+      const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+      if (!m) return null;
+      const h = parseInt(m[1] || '0', 10), mi = parseInt(m[2] || '0', 10), s = parseInt(m[3] || '0', 10);
+      const pad = (n) => String(n).padStart(2, '0');
+      return h > 0 ? `${h}:${pad(mi)}:${pad(s)}` : `${mi}:${pad(s)}`;
+    }
+
+    let metaFetchToken = 0;
+    async function fetchYouTubeMeta(videoId) {
+      const token = ++metaFetchToken;
+      const durEl = document.getElementById('urlPreviewDuration');
+      const titleEl = document.getElementById('urlPreviewTitle');
+      if (durEl) durEl.textContent = 'Duration: detecting…';
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const res = await fetch(`https://yt.lemnoslife.com/noKey/videos?part=contentDetails,snippet&id=${videoId}`, { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (!res.ok) throw new Error('metadata fetch failed');
+        const data = await res.json();
+        const item = data.items && data.items[0];
+        if (!item || token !== metaFetchToken) return;
+        if (item.snippet && item.snippet.title && titleEl) titleEl.textContent = item.snippet.title;
+        const dur = item.contentDetails && item.contentDetails.duration
+          ? parseIsoDuration(item.contentDetails.duration)
+          : null;
+        if (durEl) durEl.textContent = dur ? `Duration: ${dur}` : 'Duration: —';
+      } catch (err) {
+        if (token !== metaFetchToken) return;
+        if (durEl) durEl.textContent = 'Duration: —';
+      }
     }
 
     function clearUrlInput() {
@@ -1352,6 +1399,11 @@
                       </span>
                     </div>
                   ` : ''}
+
+                  <!-- Playback Progress Bar (fills while the preview plays) -->
+                  <div class="absolute bottom-0 left-0 right-0 h-1 bg-white/10 pointer-events-none">
+                    <div id="playProgress-${clip.id}" class="h-full bg-indigo-500" style="width: 0%"></div>
+                  </div>
                 </div>
               </div>
 
@@ -1425,6 +1477,17 @@
       const words = clip.transcript.split(' ');
       let wordIndex = 0;
 
+      // Fill the progress bar across the clip's duration so playback is visible
+      const progressEl = document.getElementById(`playProgress-${clipId}`);
+      if (progressEl) {
+        const durSecs = parseInt(clip.duration, 10) || 30;
+        progressEl.style.transition = 'none';
+        progressEl.style.width = '0%';
+        void progressEl.offsetWidth;
+        progressEl.style.transition = `width ${durSecs}s linear`;
+        progressEl.style.width = '100%';
+      }
+
       if (captionEl) {
         state.captionIntervals[clipId] = setInterval(() => {
           const chunk = words.slice(wordIndex, wordIndex + 4).join(' ');
@@ -1447,12 +1510,24 @@
       delete state.captionIntervals[clipId];
       if (state.playingClipId === clipId) state.playingClipId = null;
 
+      const clip = clipsData.find(c => c.id === clipId);
       const bgEl = document.getElementById(`bg-${clipId}`);
       const overlayEl = document.getElementById(`playBtnOverlay-${clipId}`);
       const statusEl = document.getElementById(`playStatus-${clipId}`);
+      const captionEl = document.getElementById(`captionText-${clipId}`);
+      const progressEl = document.getElementById(`playProgress-${clipId}`);
 
       if (bgEl) bgEl.classList.remove('animate-video-pan');
       if (overlayEl) overlayEl.classList.remove('opacity-0');
+      // Reset the progress bar and the caption to the opening words
+      if (progressEl) {
+        progressEl.style.transition = 'none';
+        progressEl.style.width = '0%';
+      }
+      if (captionEl && clip) {
+        captionEl.textContent = clip.transcript.split(' ').slice(0, 5).join(' ');
+        captionEl.style.transform = 'scale(1)';
+      }
       if (statusEl) {
         statusEl.textContent = 'PREVIEW';
         statusEl.className = 'px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-[10px] font-mono text-indigo-300 border border-white/10';
