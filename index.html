@@ -859,6 +859,7 @@
       isGenerating: false,
       editingClipId: null,
       playingClipId: null,
+      recordingClipId: null,
       captionIntervals: {}
     };
 
@@ -1425,11 +1426,16 @@
             </div>
 
             <!-- Card Footer Actions -->
-            <div class="px-4 pb-4 pt-1 flex items-center gap-2">
+            <div class="px-4 pb-4 pt-1 flex flex-wrap items-center gap-2">
               <button onclick="openEditModal('${clip.id}')"
                 class="flex-1 py-2 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-xs font-medium text-zinc-200 flex items-center justify-center gap-1.5 transition-colors">
                 <i data-lucide="pencil" class="w-3.5 h-3.5 text-indigo-400"></i>
                 Edit Captions
+              </button>
+              <button id="downloadClipBtn-${clip.id}" onclick="downloadClipVideo('${clip.id}')"
+                class="flex-1 py-2 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-xs font-medium text-zinc-200 flex items-center justify-center gap-1.5 transition-colors">
+                <i data-lucide="film" class="w-3.5 h-3.5 text-emerald-400"></i>
+                Download Clip
               </button>
               <button onclick="downloadClip('${clip.id}')"
                 class="flex-1 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-md shadow-indigo-600/25 flex items-center justify-center gap-1.5 transition-colors">
@@ -1613,6 +1619,223 @@
       triggerBlobDownload(buildSrt(clip), `${safeName}.srt`, 'text/plain');
       showToast(`Downloaded captions "${safeName}.srt"`, 'success');
       appendLog(`Exported captions: ${safeName}.srt (${state.aspectRatio}, ${state.captionStyle} style)`, 'text-emerald-400');
+    }
+
+    // ---- Download Clip (real video file) ----
+    // The page has no rendered MP4 — the real footage is cut by the Colab
+    // notebook. So "Download Clip" records the clip's animated preview
+    // (gradient + face-tracking box + animated captions) to a real video
+    // file in the browser with canvas.captureStream + MediaRecorder.
+    const GRADIENT_COLORS = {
+      'from-indigo-950 via-purple-900/60 to-zinc-950': ['#1e1b4b', '#581c87', '#09090b'],
+      'from-emerald-950 via-teal-900/50 to-zinc-950': ['#022c22', '#134e4a', '#09090b'],
+      'from-violet-950 via-fuchsia-900/50 to-zinc-950': ['#2e1065', '#701a75', '#09090b'],
+      'from-rose-950 via-indigo-950 to-zinc-950': ['#4c0519', '#1e1b4b', '#09090b'],
+      'from-indigo-950 via-sky-950 to-zinc-950': ['#1e1b4b', '#082f49', '#09090b'],
+      'from-amber-950/80 via-zinc-900 to-zinc-950': ['#451a03', '#18181b', '#09090b'],
+      'from-emerald-950 via-indigo-950 to-zinc-950': ['#022c22', '#1e1b4b', '#09090b'],
+      'from-purple-950 via-zinc-900 to-zinc-950': ['#3b0764', '#18181b', '#09090b'],
+    };
+
+    function gradientColorsFor(clip) {
+      return GRADIENT_COLORS[clip.gradient] || ['#1e1b4b', '#581c87', '#09090b'];
+    }
+
+    function pickVideoMimeType() {
+      if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return null;
+      const candidates = [
+        'video/mp4;codecs="avc1.42E01E"',
+        'video/mp4',
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm',
+      ];
+      for (const m of candidates) {
+        if (MediaRecorder.isTypeSupported(m)) return m;
+      }
+      return '';
+    }
+
+    function wrapCaptionLines(ctx, text, maxWidth) {
+      const words = text.split(' ');
+      const lines = [];
+      let line = '';
+      for (const w of words) {
+        const trial = line ? `${line} ${w}` : w;
+        if (ctx.measureText(trial).width <= maxWidth || !line) {
+          line = trial;
+        } else {
+          lines.push(line);
+          line = w;
+        }
+      }
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    function drawClipFrame(ctx, clip, elapsedMs, durMs, W, H) {
+      // Pan: same 7s ease-in-out loop as the CSS preview animation
+      const phase = (elapsedMs % 7000) / 7000;
+      const ease = 0.5 - 0.5 * Math.cos(phase * Math.PI * 2);
+      const scale = 1.08 + 0.12 * ease;
+      const tx = -24 * ease, ty = -14 * ease;
+
+      ctx.save();
+      ctx.translate(W / 2, H / 2);
+      ctx.scale(scale, scale);
+      ctx.translate(-W / 2 + tx, -H / 2 + ty);
+
+      // Gradient background (drawn oversized so the pan never shows edges)
+      const colors = gradientColorsFor(clip);
+      const g = ctx.createLinearGradient(0, 0, W * 1.3, H * 1.3);
+      g.addColorStop(0, colors[0]);
+      g.addColorStop(0.5, colors[1]);
+      g.addColorStop(1, colors[2]);
+      ctx.fillStyle = g;
+      ctx.fillRect(-W * 0.2, -H * 0.2, W * 1.4, H * 1.4);
+
+      // Dot grid texture
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      for (let x = 0; x < W * 1.2; x += 40) {
+        for (let y = 0; y < H * 1.2; y += 40) {
+          ctx.beginPath();
+          ctx.arc(x - W * 0.1, y - H * 0.1, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Face-tracking box
+      const boxW = W * 0.62, boxH = H * 0.42;
+      const boxX = (W - boxW) / 2, boxY = H * 0.16;
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.setLineDash([10, 8]);
+      ctx.lineWidth = 2;
+      ctx.strokeRect(boxX, boxY, boxW, boxH);
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.font = `bold ${Math.round(W * 0.028)}px monospace`;
+      ctx.textAlign = 'left';
+      ctx.fillText('FACE 0.99', boxX + 12, boxY + 30);
+      ctx.fillText('9:16 CROP', boxX + 12, boxY + boxH - 14);
+
+      // Animated captions (same 4-word chunks every 950ms as the preview)
+      if (state.captionsEnabled) {
+        const words = clip.transcript.split(' ').filter(Boolean);
+        const chunkCount = Math.max(1, Math.ceil(words.length / 4));
+        const chunkIndex = Math.floor(elapsedMs / 950) % chunkCount;
+        let chunk = words.slice(chunkIndex * 4, chunkIndex * 4 + 4).join(' ');
+        const style = state.captionStyle;
+        if (style !== 'minimal') chunk = chunk.toUpperCase();
+        const baseSize = style === 'minimal' ? 40 : 52;
+        ctx.font = `800 ${baseSize}px sans-serif`;
+        const lines = wrapCaptionLines(ctx, chunk, W * 0.88);
+        const lineHeight = baseSize * 1.2;
+        const totalH = lines.length * lineHeight;
+        let cy = H - 110 - totalH + lineHeight * 0.8;
+        ctx.textAlign = 'center';
+        if (style === 'minimal') {
+          const maxW = Math.max(...lines.map(l => ctx.measureText(l).width));
+          ctx.fillStyle = 'rgba(9,9,11,0.82)';
+          const padX = 16, padY = 10;
+          ctx.beginPath();
+          if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(W / 2 - maxW / 2 - padX, cy - baseSize - padY, maxW + padX * 2, totalH + padY * 2, 10);
+          } else {
+            ctx.rect(W / 2 - maxW / 2 - padX, cy - baseSize - padY, maxW + padX * 2, totalH + padY * 2);
+          }
+          ctx.fill();
+          ctx.fillStyle = '#f4f4f5';
+          for (const line of lines) { ctx.fillText(line, W / 2, cy); cy += lineHeight; }
+        } else if (style === 'neon') {
+          ctx.shadowColor = '#6366f1';
+          ctx.shadowBlur = 22;
+          ctx.fillStyle = '#ffffff';
+          for (const line of lines) { ctx.fillText(line, W / 2, cy); cy += lineHeight; }
+          ctx.shadowBlur = 0;
+        } else {
+          // hormozi: white text with a heavy black outline
+          ctx.lineWidth = 8;
+          ctx.strokeStyle = '#000000';
+          ctx.lineJoin = 'round';
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = 'rgba(0,0,0,0.85)';
+          ctx.shadowBlur = 16;
+          for (const line of lines) {
+            ctx.strokeText(line, W / 2, cy);
+            ctx.fillText(line, W / 2, cy);
+            cy += lineHeight;
+          }
+          ctx.shadowBlur = 0;
+        }
+        ctx.textAlign = 'left';
+      }
+      ctx.restore();
+    }
+
+    async function downloadClipVideo(clipId) {
+      const clip = clipsData.find(c => c.id === clipId);
+      if (!clip) return;
+      if (state.recordingClipId) {
+        showToast('Already recording a clip — wait for it to finish', 'info');
+        return;
+      }
+      const testCanvas = document.createElement('canvas');
+      if (typeof MediaRecorder === 'undefined' || typeof testCanvas.captureStream !== 'function') {
+        showToast('Clip recording is not supported in this browser — render the MP4 from the Colab notebook', 'error');
+        return;
+      }
+      const mime = pickVideoMimeType();
+      if (mime === null) {
+        showToast('Clip recording is not supported in this browser — render the MP4 from the Colab notebook', 'error');
+        return;
+      }
+
+      state.recordingClipId = clipId;
+      const btn = document.getElementById(`downloadClipBtn-${clipId}`);
+      const origLabel = btn ? btn.innerHTML : '';
+      const durSecs = parseInt(clip.duration, 10) || 30;
+      const durMs = durSecs * 1000;
+      showToast(`Recording clip preview — keep this tab open for ${durSecs}s`, 'info');
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 720;
+        canvas.height = 1280;
+        const ctx = canvas.getContext('2d');
+        const stream = canvas.captureStream(30);
+        const rec = new MediaRecorder(
+          stream,
+          mime ? { mimeType: mime, videoBitsPerSecond: 4000000 } : { videoBitsPerSecond: 4000000 }
+        );
+        const chunks = [];
+        rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+        const stopped = new Promise((res) => { rec.onstop = res; });
+        rec.start(250);
+        const start = performance.now();
+        const tick = (now) => {
+          const el = now - start;
+          drawClipFrame(ctx, clip, el, durMs, canvas.width, canvas.height);
+          if (btn) btn.textContent = `Recording ${Math.floor(el / 1000)}s / ${durSecs}s`;
+          if (el < durMs && rec.state === 'recording') requestAnimationFrame(tick);
+          else if (rec.state === 'recording') rec.stop();
+        };
+        requestAnimationFrame(tick);
+        await stopped;
+        const ext = mime && mime.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+        const blob = new Blob(chunks, { type: mime || 'video/webm' });
+        if (!blob.size) throw new Error('empty recording');
+        const safeName = safeClipName(clip);
+        triggerBlobDownload(blob, `${safeName}.${ext}`, blob.type);
+        showToast(`Downloaded clip "${safeName}.${ext}" (${(blob.size / 1024).toFixed(0)} KB)`, 'success');
+        appendLog(`Recorded preview video: ${safeName}.${ext} (${durSecs}s, 720x1280)`, 'text-emerald-400');
+      } catch (err) {
+        showToast('Clip recording failed — render the MP4 from the Colab notebook', 'error');
+      } finally {
+        state.recordingClipId = null;
+        if (btn) {
+          btn.innerHTML = origLabel;
+          if (window.lucide) lucide.createIcons();
+        }
+      }
     }
 
     async function downloadAllClips() {
