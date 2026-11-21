@@ -12,6 +12,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- JSZip (for the real Export All .ZIP download) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <script>
     tailwind.config = {
@@ -213,7 +215,7 @@
         </button>
 
         <!-- Colab Notebook Reference Button -->
-        <a href="https://colab.research.google.com/github/Aadi1659/liveclip/blob/main/liveclip_colab.ipynb?utm_source=sp_auto_dm&utm_referrer=sp_auto_dm#scrollTo=POWjp1bBAOM"
+        <a href="https://colab.research.google.com/github/Sgsuprio/LiveClip-Studio-AI/blob/main/liveclip_colab.ipynb"
            target="_blank"
            rel="noopener noreferrer"
            class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 hover:border-amber-500/40 text-zinc-200 text-xs font-medium transition-all group">
@@ -281,7 +283,10 @@
               <div class="relative flex flex-col sm:flex-row gap-2.5">
                 <div class="relative flex-1">
                   <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <i data-lucide="youtube" class="w-4 h-4 text-rose-500"></i>
+                    <!-- Inline YouTube mark: lucide removed brand icons, so data-lucide="youtube" renders blank -->
+                    <svg class="w-4 h-4 text-rose-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.3 31.3 0 0 0 0 12a31.3 31.3 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.3 31.3 0 0 0 24 12a31.3 31.3 0 0 0-.5-5.8zM9.6 15.6V8.4L15.8 12l-6.2 3.6z"/>
+                    </svg>
                   </div>
                   <input type="text" id="streamUrlInput"
                     placeholder="https://www.youtube.com/watch?v=..."
@@ -711,7 +716,7 @@
           <label class="block text-xs font-semibold text-zinc-300">Google Colab Backend Notebook URL</label>
           <div class="flex items-center gap-2">
             <input id="colabShareUrlInput" type="text" readonly
-              value="https://colab.research.google.com/github/Aadi1659/liveclip/blob/main/liveclip_colab.ipynb?utm_source=sp_auto_dm&utm_referrer=sp_auto_dm#scrollTo=POWjp1bBAOM"
+              value="https://colab.research.google.com/github/Sgsuprio/LiveClip-Studio-AI/blob/main/liveclip_colab.ipynb"
               class="flex-1 px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-white/10 text-xs font-mono text-zinc-300 outline-none" />
             <button onclick="copyFieldText('colabShareUrlInput', 'Colab Notebook URL copied!')"
               class="px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-white/10 text-xs font-medium text-white flex items-center gap-1.5 transition-colors shrink-0">
@@ -1113,6 +1118,17 @@
       document.getElementById('toggleFaceTrack').checked = true;
       document.getElementById('toggleHookDetect').checked = true;
       document.getElementById('toggleSilence').checked = false;
+      state.faceTracking = true;
+      state.hookDetection = true;
+      state.silenceRemoval = false;
+      // Restore the highlighted default buttons too (previously the old
+      // selection stayed highlighted even though the state was reset).
+      const defaultDurationBtn = document.querySelector(`.duration-btn[onclick*="'15-30s'"]`);
+      if (defaultDurationBtn) selectDuration('15-30s', defaultDurationBtn);
+      const defaultAspectBtn = document.querySelector(`.aspect-btn[onclick*="'9:16'"]`);
+      if (defaultAspectBtn) selectAspect('9:16', defaultAspectBtn);
+      const defaultCapBtn = document.querySelector(`.cap-style-btn[onclick*="'hormozi'"]`);
+      if (defaultCapBtn) selectCaptionStyle('hormozi', defaultCapBtn);
       toggleCaptionStyleBox();
       showToast('AI settings restored to recommended defaults', 'info');
     }
@@ -1365,8 +1381,8 @@
               </button>
               <button onclick="downloadClip('${clip.id}')"
                 class="flex-1 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-md shadow-indigo-600/25 flex items-center justify-center gap-1.5 transition-colors">
-                <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                Download MP4
+                <i data-lucide="subtitles" class="w-3.5 h-3.5"></i>
+                Download Captions
               </button>
             </div>
           </article>
@@ -1483,16 +1499,69 @@
       showToast('Sorted clips by highest AI Viral Score', 'info');
     }
 
+    // Caption (.SRT) export helpers — used by the real Download buttons
+    function timeToSeconds(t) {
+      const p = t.split(':').map(Number);
+      return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1];
+    }
+
+    function srtTimestamp(totalSeconds) {
+      const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+      const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+      const s = String(Math.floor(totalSeconds % 60)).padStart(2, '0');
+      const ms = String(Math.round((totalSeconds % 1) * 1000)).padStart(3, '0');
+      return `${h}:${m}:${s},${ms}`;
+    }
+
+    function buildSrt(clip) {
+      const words = clip.transcript.split(' ').filter(Boolean);
+      const start = timeToSeconds(clip.startTime);
+      const chunkSeconds = 2.2;
+      let out = '';
+      for (let i = 0; i < words.length; i += 4) {
+        const idx = i / 4 + 1;
+        const t0 = start + (i / 4) * chunkSeconds;
+        const t1 = t0 + chunkSeconds;
+        out += `${idx}\n${srtTimestamp(t0)} --> ${srtTimestamp(t1)}\n${words.slice(i, i + 4).join(' ')}\n\n`;
+      }
+      return out;
+    }
+
+    function safeClipName(clip) {
+      return clip.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 28);
+    }
+
     function downloadClip(clipId) {
       const clip = clipsData.find(c => c.id === clipId);
       if (!clip) return;
-      const safeName = clip.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 28);
-      showToast(`Exporting "${safeName}_${state.aspectRatio.replace(':', 'x')}.mp4"...`, 'success');
-      appendLog(`Exported MP4 render: ${safeName}.mp4 (${state.aspectRatio}, H.264 60fps)`, 'text-emerald-400');
+      const safeName = safeClipName(clip);
+      triggerBlobDownload(buildSrt(clip), `${safeName}.srt`, 'text/plain');
+      showToast(`Downloaded captions "${safeName}.srt"`, 'success');
+      appendLog(`Exported captions: ${safeName}.srt (${state.aspectRatio}, ${state.captionStyle} style)`, 'text-emerald-400');
     }
 
-    function downloadAllClips() {
-      showToast(`Bundling ${clipsData.length} MP4 clips into LiveClip_Export_Pack.zip...`, 'success');
+    async function downloadAllClips() {
+      if (typeof JSZip === 'undefined') {
+        showToast('Zip library did not load — downloading the config JSON instead.', 'info');
+        downloadJsonConfig();
+        return;
+      }
+      const zip = new JSZip();
+      clipsData.forEach((clip) => {
+        zip.file(`${safeClipName(clip)}.srt`, buildSrt(clip));
+      });
+      zip.file('liveclip_config.json', formatConfigOutput('json'));
+      zip.file('README.txt', 'LiveClip Studio AI export pack.\nCaptions are .srt files, one per clip.\nRender the actual MP4s from the Colab notebook using liveclip_config.json.\n');
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'LiveClip_Export_Pack.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Downloaded LiveClip_Export_Pack.zip (${clipsData.length} clips)`, 'success');
       appendLog(`Created archive LiveClip_Export_Pack.zip (${clipsData.length} files)`, 'text-indigo-400');
     }
 
@@ -1529,7 +1598,7 @@
     // Share & Export Feature Logic
     // ==========================================
     let currentConfigFormat = 'json';
-    const COLAB_NOTEBOOK_URL = 'https://colab.research.google.com/github/Aadi1659/liveclip/blob/main/liveclip_colab.ipynb?utm_source=sp_auto_dm&utm_referrer=sp_auto_dm#scrollTo=POWjp1bBAOM';
+    const COLAB_NOTEBOOK_URL = 'https://colab.research.google.com/github/Sgsuprio/LiveClip-Studio-AI/blob/main/liveclip_colab.ipynb';
 
     function openShareExportModal() {
       syncCurrentStateFromDOM();
