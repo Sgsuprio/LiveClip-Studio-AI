@@ -8,12 +8,15 @@ Turn a long video into vertical short clips — for real, for free.
 
 1. **On the site:** paste a YouTube URL, pick clip length (15–30s / 30–60s / 60–90s),
    clip count and caption style (Hormozi / Minimal / Neon), then click
-   **Generate Viral Clips**. The site downloads `liveclip_config.json`.
-2. **In Colab:** open the notebook below, pick a free T4 GPU runtime, upload
-   `liveclip_config.json` when asked, then Run all. The notebook downloads the
-   video, transcribes it with faster-whisper, scores every window for viral
-   hooks, cuts the top clips vertical (9:16, 1080×1920) with styled captions,
-   and packages real MP4s + SRTs + `liveclip_clips.json`.
+   **Generate Viral Clips** and **Open Colab Notebook**. Your settings travel
+   with the Colab link itself — nothing to download or upload.
+2. **In Colab:** pick a free T4 GPU runtime, then Run all. The notebook reads
+   your settings from the link, downloads the video, transcribes it with
+   faster-whisper, scores every window for viral hooks, cuts the top clips
+   vertical (9:16, 1080×1920) with styled captions, and packages real MP4s +
+   SRTs + `liveclip_clips.json`. If the link ever loses the settings, the
+   notebook falls back to an uploaded `liveclip_config.json` (Download Config
+   Again on the page), pasted JSON, or the form fields in its first cell.
 3. **Back on the site:** click **Load Colab Results** and pick
    `liveclip_clips.json`. The gallery shows your real clips — real scores,
    transcripts, times, titles and hashtags. Download Captions gives you real
@@ -58,5 +61,11 @@ Use it for your own videos or content you have the right to clip.
 Tested end to end on a real 5-minute speech video (Denzel Washington,
 “Fall Forward”): 3 clips scored 83/79/79, rendered as 1080×1920 30s MP4s
 with burned-in captions, plus matching SRTs and `liveclip_clips.json`.
-Page flow covered by a jsdom harness (27 checks: empty gallery on load,
-config shape, real-results loading, word-timed SRT, export ZIP).
+Page flow covered by a jsdom harness (30 checks: empty gallery on load,
+auto-handoff link with the settings in the URL fragment and no file download,
+real-results loading, word-timed SRT, export ZIP). Notebook settings sources
+covered by a config-cell test (link fragment, uploaded file, pasted JSON,
+form fields). The link handoff uses a base64url JSON fragment
+(`#liveclip=...`) read by the notebook with `google.colab.output.eval_js` —
+no third-party service is involved, so there is nothing that can go down or
+block it.
