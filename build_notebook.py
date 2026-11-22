@@ -14,8 +14,8 @@ faster-whisper, scores every window for viral hooks, cuts the top clips vertical
 (9:16) with styled captions, and packages real MP4s + SRTs + `liveclip_clips.json`.
 
 **How to use it (from the Studio page):**
-1. On the Studio page, paste a YouTube URL, pick clip length / count / caption style, click **Generate Viral Clips** — it downloads `liveclip_config.json`.
-2. Open this notebook in Colab (Runtime → Change runtime type → T4 GPU), upload `liveclip_config.json` when asked, then Run all.
+1. On the Studio page, paste a YouTube URL, pick clip length / count / caption style, click **Generate Viral Clips**, then click **Open Colab Notebook** — your settings travel with the link, nothing to download or upload.
+2. In Colab pick a T4 GPU runtime (Runtime → Change runtime type → T4 GPU), then Run all. If the link ever loses the settings, upload `liveclip_config.json` (Download Config Again on the page) or paste the JSON into the `config_json` field below.
 3. Download `liveclip_clips.json` + `LiveClip_Export_Pack.zip` from the last cell, then load `liveclip_clips.json` back into the Studio page with **Load Colab Results** — the gallery shows your REAL clips, scores and transcripts.
 
 Use it for your own videos or content you have the right to clip.
@@ -28,8 +28,8 @@ print("deps installed")
 """
 
 CELL_CONFIG = """#@title LiveClip job settings
-#@markdown Paste your YouTube URL, or upload `liveclip_config.json` from the Studio page (it overrides these fields).
-import json, os
+#@markdown Open this notebook from the Studio page's **Open Colab Notebook** button and your settings arrive with the link — just Run all. If the link lost them, upload `liveclip_config.json`, paste the JSON below, or fill in these fields.
+import json, os, base64
 
 source_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  #@param {type:"string"}
 segment_start = 0  #@param {type:"number"}
@@ -41,6 +41,7 @@ whisper_model = "base"  #@param ["tiny", "base", "small", "medium", "large-v3"]
 language = "en"  #@param {type:"string"}
 viral_hook_detection = True  #@param {type:"boolean"}
 auto_silence_removal = False  #@param {type:"boolean"}
+config_json = ""  #@param {type:"string"}
 
 CONFIG = {
     "source_url": source_url,
@@ -57,11 +58,9 @@ CONFIG = {
     "auto_silence_removal": auto_silence_removal,
 }
 
-# A config file exported from the Studio page overrides the form above.
-# It accepts the flat v2 format, and the older nested format for backwards compat.
-if os.path.exists("liveclip_config.json"):
-    with open("liveclip_config.json") as f:
-        exported = json.load(f)
+# Settings arrive from the Studio page in this order — first one that works wins.
+# The flat v2 format is accepted, and the older nested format for backwards compat.
+def _apply_exported(exported, source_name):
     flat = dict(exported)
     if "clip_settings" in exported:
         flat.update(exported["clip_settings"])
@@ -70,7 +69,36 @@ if os.path.exists("liveclip_config.json"):
     for key in CONFIG:
         if key in flat and flat[key] not in (None, ""):
             CONFIG[key] = flat[key]
-    print("loaded liveclip_config.json")
+    print(f"settings loaded from {source_name}")
+
+_loaded_from = None
+
+# 1. Settings embedded in the page's Colab link (#liveclip=<base64url JSON>).
+#    The Studio page builds this link on Generate, so nothing needs uploading.
+try:
+    from google.colab import output as _colab_output
+    _hash = _colab_output.eval_js("window.location.hash || ''") or ""
+    if _hash.startswith("#liveclip="):
+        _raw = _hash[len("#liveclip="):]
+        _padded = _raw + "=" * (-len(_raw) % 4)
+        _apply_exported(json.loads(base64.urlsafe_b64decode(_padded).decode("utf-8")), "the Studio page link")
+        _loaded_from = "link"
+except Exception as e:
+    print("link settings not found, trying the other options:", e)
+
+# 2. Uploaded liveclip_config.json (the Download Config Again fallback).
+if _loaded_from is None and os.path.exists("liveclip_config.json"):
+    with open("liveclip_config.json") as f:
+        _apply_exported(json.load(f), "liveclip_config.json")
+    _loaded_from = "file"
+
+# 3. JSON pasted into the config_json field above.
+if _loaded_from is None and config_json.strip():
+    _apply_exported(json.loads(config_json), "the pasted JSON")
+    _loaded_from = "paste"
+
+if _loaded_from is None:
+    print("using the form fields above")
 
 os.makedirs("/content/liveclip", exist_ok=True)
 with open("/content/liveclip/config.json", "w") as f:
@@ -89,7 +117,9 @@ RAW = "/content/liveclip/raw.mp4"
 # Real source duration first (ffprobe on the downloaded file is the ground truth,
 # but yt-dlp tells us the length before we download so we can skip segmenting).
 meta = subprocess.run(
-    ["yt-dlp", "--force-ipv4", "--no-playlist", "--print", "%(duration)s",
+    ["yt-dlp", "--force-ipv4", "--no-playlist",
+     "--extractor-args", "youtube:player_client=android",
+     "--print", "%(duration)s",
      "--print", "%(title)s", "--skip-download", SRC],
     capture_output=True, text=True)
 lines = meta.stdout.strip().splitlines()
@@ -104,6 +134,7 @@ needs_window = FULL_DUR is not None and (SEG_START > 0 or SEG_END < FULL_DUR)
 if not needs_window:
     subprocess.run(
         ["yt-dlp", "--force-ipv4", "--no-playlist",
+         "--extractor-args", "youtube:player_client=android",
          "-f", "bv*[height<=1080]+ba/b[height<=1080]",
          "--merge-output-format", "mp4", "-o", RAW, SRC],
         check=True)
@@ -112,6 +143,7 @@ else:
     # the exact window (yt-dlp --download-sections can silently truncate audio).
     urls = subprocess.run(
         ["yt-dlp", "--force-ipv4", "--no-playlist", "-g",
+         "--extractor-args", "youtube:player_client=android",
          "-f", "bv*[height<=1080]+ba/b[height<=1080]", SRC],
         capture_output=True, text=True, check=True).stdout.strip().splitlines()
     v_url, a_url = urls[0], urls[1] if len(urls) > 1 else None
@@ -204,16 +236,16 @@ def score_window(ws):
     # Hook bonuses only apply when viral hook detection is on; off means
     # plain speech-density ranking.
     if CONFIG.get("viral_hook_detection", True):
-        hits = [h for h in HOOK_OPENERS if re.search(rf"\\b{h}\\b", opener)]
+        hits = [h for h in HOOK_OPENERS if re.search(rf"\b{h}\b", opener)]
         if hits:
             score += min(12 * len(hits), 24); reasons.append(f"hook opener ({', '.join(hits[:2])})")
         if "?" in text:
             score += 10; reasons.append("opens with a question")
         if "!" in text:
             score += 6; reasons.append("exclamation energy")
-        if re.search(r"\\d+\\s?%|\\$\\d+|\\b\\d{2,}\\b", text):
+        if re.search(r"\d+\s?%|\$\d+|\b\d{2,}\b", text):
             score += 8; reasons.append("concrete number/stat")
-        emo = [e for e in EMOTION if re.search(rf"\\b{e}\\b", low)]
+        emo = [e for e in EMOTION if re.search(rf"\b{e}\b", low)]
         if emo:
             score += 8; reasons.append(f"emotion word ({emo[0]})")
     if ws and (ws[0]["word"][:1].isupper() or ws[0] is words[0]):
@@ -230,8 +262,8 @@ def score_window(ws):
     return min(100, max(0, round(score))), reasons
 
 def window_title(text):
-    m = re.split(r"[.!?]\\s+", text.strip())
-    s = (m[0] if m else text).strip().strip(" \\"'")
+    m = re.split(r"[.!?]\s+", text.strip())
+    s = (m[0] if m else text).strip().strip(" \"'")
     if len(s) < 12:
         s = text.strip()
     if len(s) > 70:
@@ -239,7 +271,7 @@ def window_title(text):
     return s
 
 def window_tags(text):
-    toks = re.findall(r"[a-z][a-z\\-]{2,}", text.lower())
+    toks = re.findall(r"[a-z][a-z\-]{2,}", text.lower())
     freq = {}
     for t in toks:
         if t not in STOPWORDS:
