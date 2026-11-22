@@ -1,0 +1,144 @@
+# LiveClip — clip a YouTube video into vertical clips (GitHub Actions backend)
+#
+# Triggered from the Studio page: Generate -> "Open GitHub Actions" ->
+# pick the main branch, paste the video URL + settings, click Run workflow.
+# No files to download or upload: the pipeline runs here on a free runner,
+# and the results go to the orphan `results` branch, which the Studio page
+# loads back by itself (raw.githubusercontent.com).
+#
+# The pipeline itself is clip.py (generated from build_notebook.py) — the
+# same stages as the Colab notebook: ingest, transcribe (faster-whisper,
+# CPU int8), score, render (ffmpeg 9:16 + burned captions), package.
+# A 20-minute segment takes roughly 15-25 minutes on the free runner.
+name: Clip video
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_url:
+        description: "YouTube video URL"
+        required: true
+        type: string
+      segment_start:
+        description: "Segment start in seconds (0 = from the beginning)"
+        required: false
+        default: "0"
+        type: string
+      segment_duration:
+        description: "Segment length in seconds (max 1200 = 20 min)"
+        required: false
+        default: "1200"
+        type: string
+      clip_length:
+        description: "Clip length"
+        required: false
+        default: "30-60s"
+        type: choice
+        options:
+          - "15-30s"
+          - "30-60s"
+          - "60-90s"
+      max_clips:
+        description: "How many clips (max 6)"
+        required: false
+        default: "3"
+        type: string
+      caption_style:
+        description: "Caption style"
+        required: false
+        default: "hormozi"
+        type: choice
+        options:
+          - hormozi
+          - minimal
+          - neon
+      whisper_model:
+        description: "Whisper model (base is the balance; tiny is faster)"
+        required: false
+        default: "base"
+        type: choice
+        options:
+          - tiny
+          - base
+          - small
+      language:
+        description: "Audio language code, or auto to detect"
+        required: false
+        default: "auto"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  clip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      SOURCE_URL: ${{ inputs.source_url }}
+      SEGMENT_START: ${{ inputs.segment_start }}
+      SEGMENT_DURATION: ${{ inputs.segment_duration }}
+      CLIP_LENGTH: ${{ inputs.clip_length }}
+      MAX_CLIPS: ${{ inputs.max_clips }}
+      CAPTION_STYLE: ${{ inputs.caption_style }}
+      WHISPER_MODEL: ${{ inputs.whisper_model }}
+      LANGUAGE: ${{ inputs.language }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pipeline
+        run: pip install -q yt-dlp faster-whisper
+
+      - name: Build config
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          lang = os.environ.get("LANGUAGE", "auto").strip()
+          cfg = {
+              "source_url": os.environ["SOURCE_URL"],
+              "segment_start": int(os.environ.get("SEGMENT_START", "0") or 0),
+              "segment_duration": int(os.environ.get("SEGMENT_DURATION", "1200") or 1200),
+              "clip_length": os.environ.get("CLIP_LENGTH", "30-60s"),
+              "max_clips": int(os.environ.get("MAX_CLIPS", "3") or 3),
+              "caption_style": os.environ.get("CAPTION_STYLE", "hormozi"),
+              "aspect_ratio": "9:16",
+              "whisper_model": os.environ.get("WHISPER_MODEL", "base"),
+              "language": "" if lang.lower() in ("auto", "") else lang,
+              "dynamic_captions": True,
+              "viral_hook_detection": True,
+              "auto_silence_removal": False,
+          }
+          json.dump(cfg, open("liveclip_config.json", "w"), indent=2)
+          print(json.dumps(cfg, indent=2))
+          EOF
+
+      - name: Publish run status (running)
+        run: |
+          mkdir -p results
+          python3 - <<'EOF'
+          import json, datetime, os
+          cfg = json.load(open("liveclip_config.json"))
+          json.dump({
+              "status": "running",
+              "source_url": cfg["source_url"],
+              "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+              "clips": 0,
+              "message": "Clipping started — downloading and transcribing.",
+          }, open("results/run_status.json", "w"), indent=2)
+          EOF
+          bash .github/scripts/publish_results.sh "run started: ${SOURCE_URL}"
+
+      - name: Run the pipeline
+        run: python3 clip.py --config liveclip_config.json --workdir liveclip-work --outdir results
+
+      - name: Publish results
+        if: always()
+        run: bash .github/scripts/publish_results.sh "clips for ${SOURCE_URL}"
