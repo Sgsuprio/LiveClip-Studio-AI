@@ -236,16 +236,16 @@ def score_window(ws):
     # Hook bonuses only apply when viral hook detection is on; off means
     # plain speech-density ranking.
     if CONFIG.get("viral_hook_detection", True):
-        hits = [h for h in HOOK_OPENERS if re.search(rf"\b{h}\b", opener)]
+        hits = [h for h in HOOK_OPENERS if re.search(rf"\\b{h}\\b", opener)]
         if hits:
             score += min(12 * len(hits), 24); reasons.append(f"hook opener ({', '.join(hits[:2])})")
         if "?" in text:
             score += 10; reasons.append("opens with a question")
         if "!" in text:
             score += 6; reasons.append("exclamation energy")
-        if re.search(r"\d+\s?%|\$\d+|\b\d{2,}\b", text):
+        if re.search(r"\\d+\\s?%|\\$\\d+|\\b\\d{2,}\\b", text):
             score += 8; reasons.append("concrete number/stat")
-        emo = [e for e in EMOTION if re.search(rf"\b{e}\b", low)]
+        emo = [e for e in EMOTION if re.search(rf"\\b{e}\\b", low)]
         if emo:
             score += 8; reasons.append(f"emotion word ({emo[0]})")
     if ws and (ws[0]["word"][:1].isupper() or ws[0] is words[0]):
@@ -262,8 +262,8 @@ def score_window(ws):
     return min(100, max(0, round(score))), reasons
 
 def window_title(text):
-    m = re.split(r"[.!?]\s+", text.strip())
-    s = (m[0] if m else text).strip().strip(" \"'")
+    m = re.split(r"[.!?]\\s+", text.strip())
+    s = (m[0] if m else text).strip().strip(" \"'" )
     if len(s) < 12:
         s = text.strip()
     if len(s) > 70:
@@ -271,7 +271,7 @@ def window_title(text):
     return s
 
 def window_tags(text):
-    toks = re.findall(r"[a-z][a-z\-]{2,}", text.lower())
+    toks = re.findall(r"[a-z][a-z\\-]{2,}", text.lower())
     freq = {}
     for t in toks:
         if t not in STOPWORDS:
@@ -280,9 +280,12 @@ def window_tags(text):
     return ["#" + t.replace("-", "") for t in top]
 
 SEG_START = CONFIG["segment_start"]
-SEG_END = SEG_START + float(json.load(open("/content/liveclip/source.json"))["duration"])
+# Word timestamps are relative to the downloaded segment file (raw.mp4),
+# so windows slide from 0, NOT from segment_start. segment_start only
+# offsets the times reported in clips.json (see the package stage).
+SEG_END = float(json.load(open("/content/liveclip/source.json"))["duration"])
 candidates = []
-t = SEG_START
+t = 0.0
 while t + MIN_LEN <= SEG_END:
     ws = [w for w in words if t <= w["start"] < t + WINDOW]
     if len(ws) >= 20:
@@ -398,12 +401,16 @@ out_clips = []
 for i, c in enumerate(picked, 1):
     s, e = c["start"], c["end"]
     clip_words = [w for w in words if s <= w["start"] < e]
+    # clips.json reports absolute video times: segment-relative picks
+    # offset by segment_start. (Render cuts raw.mp4, which is segment
+    # relative, so s/e stay segment-relative above.)
+    s_abs, e_abs = s + CONFIG["segment_start"], e + CONFIG["segment_start"]
     out_clips.append({
         "id": f"clip-{i}",
         "title": c["title"],
         "score": c["score"],
-        "start": s, "end": e,
-        "startTime": fmt_hms(s), "endTime": fmt_hms(e),
+        "start": s_abs, "end": e_abs,
+        "startTime": fmt_hms(s_abs), "endTime": fmt_hms(e_abs),
         "duration": f"{round(e - s)}s",
         "hookReason": c["hookReason"],
         "transcript": c["text"],
