@@ -1,7 +1,7 @@
 {
-  "status": "error",
+  "status": "running",
   "source_url": "https://youtu.be/6y23cQpanKA",
-  "updated_at": "2026-11-22T04:05:55.025122Z",
+  "updated_at": "2026-11-22T05:56:43.076298Z",
   "clips": 0,
-  "message": "CalledProcessError: Command '['yt-dlp', '--force-ipv4', '--no-playlist', '-f', 'bv*[height<=1080]+ba/b[height<=1080]', '--merge-output-format', 'mp4', '-o', '/home/runner/work/LiveClip-Studio-AI/LiveClip-Studio-AI/liveclip-work/raw.mp4', 'https://youtu.be/6y23cQpanKA']' returned non-zero exit status 1."
+  "message": "Clipping started \u2014 downloading and transcribing."
 }
