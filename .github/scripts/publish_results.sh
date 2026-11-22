@@ -17,7 +17,7 @@ if [ ! -f "results/run_status.json" ]; then
   printf '{"status": "error", "source_url": "", "clips": 0, "message": "The run failed before clipping started."}' > results/run_status.json
 fi
 
-REPO="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+REPO="https://x-access-token:${GITHUB_TOKEN:?GITHUB_TOKEN is not set - the workflow must pass env: GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}}@github.com/${GITHUB_REPOSITORY}.git"
 TMP="$(mktemp -d)"
 git clone --quiet "$REPO" "$TMP"
 cd "$TMP"
