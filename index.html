@@ -341,7 +341,7 @@
           <div class="mt-6 pt-5 border-t border-white/[0.07] flex flex-col sm:flex-row items-center justify-between gap-4">
             <div class="flex items-center gap-2 text-xs text-zinc-400">
               <i data-lucide="cpu" class="w-4 h-4 text-emerald-400"></i>
-              <span>Real clipping runs in Colab (free GPU) — a 5-min video takes about 2–4 min</span>
+              <span>Real clipping runs on GitHub Actions (free) — about 15–25 min for a 20-min segment</span>
             </div>
 
             <div class="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
@@ -425,8 +425,30 @@
             </div>
             <div id="terminalLog" class="p-3.5 h-36 overflow-y-auto font-mono text-xs space-y-1.5 text-zinc-300">
               <div class="text-zinc-500">Ready. Paste a YouTube URL, pick your settings, then click "Generate Viral Clips".</div>
-              <div class="text-zinc-500">Generate sends your settings straight to Colab — open the notebook and press Run all, then load the results back here.</div>
+              <div class="text-zinc-500">Generate starts a free GitHub Actions run — no files to download or upload, your clips appear here by themselves.</div>
             </div>
+          </div>
+
+          <!-- GitHub Actions handoff (shown after Generate — the no-files route) -->
+          <div id="actionsHandoff" class="hidden mt-5 rounded-xl bg-emerald-600/10 border border-emerald-500/30 p-4">
+            <p class="text-xs font-semibold text-white mb-1">Your job is ready — start it on GitHub Actions</p>
+            <p class="text-[11px] text-zinc-400 leading-relaxed mb-3">1. Open the workflow — pick the <span class="text-zinc-200">main</span> branch, paste the same YouTube URL, keep the same settings, click <span class="text-zinc-200">Run workflow</span>. 2. Come back here — this page checks for your clips by itself (about 15–25 min for a 20-min segment). Nothing to download or upload.</p>
+            <div class="flex flex-wrap gap-2">
+              <a id="openActionsLink" href="https://github.com/Sgsuprio/LiveClip-Studio-AI/actions/workflows/clip.yml" target="_blank" rel="noopener noreferrer"
+                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                Open GitHub Actions
+              </a>
+              <button onclick="checkActionsResults()"
+                class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-zinc-200 text-xs font-medium flex items-center gap-1.5 transition-colors">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-emerald-400"></i>
+                Check for my clips
+              </button>
+              <button id="stopActionsPollBtn" onclick="stopActionsPoll()" class="hidden px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-zinc-200 text-xs font-medium flex items-center gap-1.5 transition-colors">
+                Stop checking
+              </button>
+            </div>
+            <p id="actionsStatus" class="text-[11px] text-zinc-500 leading-relaxed mt-3">Not started yet.</p>
           </div>
 
           <!-- Colab handoff (shown after Generate prepares the config) -->
@@ -869,10 +891,20 @@
       playingClipId: null,
       recordingClipId: null,
       captionIntervals: {},
-      loadedResults: null
+      loadedResults: null,
+      pendingRun: null,      // { source_url, startedAt } — the Actions run Generate started
+      resultsSource: null,   // 'actions' | 'file'
+      resultsBaseUrl: null,  // raw.githubusercontent base for Actions MP4 links
+      actionsPollTimer: null
     };
 
-    // Real clips only. The gallery starts empty: clips appear here after the
+    // GitHub Actions backend: the workflow publishes results to the orphan
+    // `results` branch; the page reads it back from raw.githubusercontent.com.
+    const ACTIONS_WORKFLOW_URL = 'https://github.com/Sgsuprio/LiveClip-Studio-AI/actions/workflows/clip.yml';
+    const ACTIONS_RESULTS_BASE = 'https://raw.githubusercontent.com/Sgsuprio/LiveClip-Studio-AI/results/';
+
+    // Real clips only. The gallery starts empty: clips appear here after a
+    // GitHub Actions run finishes (the page checks by itself) or after the
     // Colab notebook runs and its liveclip_clips.json is loaded with
     // "Load Colab Results". Nothing on this page is pre-filled or simulated.
     let clipsData = [];
@@ -1145,18 +1177,27 @@
         return;
       }
 
-      // Build the real job config and put it in the Colab link, so the
-      // notebook picks the settings up itself — no file to download or upload.
+      // Build the real job config. The GitHub Actions workflow is the
+      // primary route now: Generate starts a free Actions run and the page
+      // checks for its clips by itself — no file to download or upload.
+      // (The Colab link below stays as a fallback.)
       const cfg = buildConfigObject();
       const colabLink = document.getElementById('openColabLink');
       if (colabLink) colabLink.href = buildColabAutoUrl(cfg);
 
-      // Show the handoff: the 4 Colab stages are what the notebook will do.
+      // Remember this run so the page can keep checking for it, even after
+      // a reload, and so the results can be matched to the video asked for.
+      state.pendingRun = { source_url: cfg.source_url, startedAt: Date.now() };
+      try { localStorage.setItem('liveclip_pending_run', JSON.stringify(state.pendingRun)); } catch (e) {}
+      // The URL is already copied — paste it straight into the GitHub form.
+      try { navigator.clipboard.writeText(cfg.source_url); } catch (e) {}
+
+      // Show the handoff: the 4 Actions stages are what the workflow will do.
       const pills = [
-        { id: 'step-1', label: 'STEP 1 • CONFIG READY', log: 'Config ready — your settings travel with the Colab link below.', cls: 'text-emerald-400' },
-        { id: 'step-2', label: 'STEP 2 • OPEN COLAB', log: 'Open the notebook link below, pick a T4 GPU runtime, then Run all — no upload needed.', cls: 'text-indigo-300' },
-        { id: 'step-3', label: 'STEP 3 • NOTEBOOK RUNS', log: 'Colab downloads the video, transcribes it, scores hooks and renders real MP4 clips.', cls: 'text-indigo-300' },
-        { id: 'step-4', label: 'STEP 4 • LOAD RESULTS', log: 'Download liveclip_clips.json from Colab, then Load Colab Results here to see your real clips.', cls: 'text-indigo-300' },
+        { id: 'step-1', label: 'STEP 1 • CONFIG READY', log: 'Config ready — start the run on GitHub Actions below.', cls: 'text-emerald-400' },
+        { id: 'step-2', label: 'STEP 2 • START ON GITHUB', log: 'Open the workflow, pick main, paste the same URL (already copied), click Run workflow.', cls: 'text-indigo-300' },
+        { id: 'step-3', label: 'STEP 3 • ACTIONS RUNS', log: 'GitHub downloads the video, transcribes it, scores hooks and renders real MP4 clips.', cls: 'text-indigo-300' },
+        { id: 'step-4', label: 'STEP 4 • CLIPS APPEAR HERE', log: 'This page checks by itself — your clips appear in the gallery, no file to load.', cls: 'text-indigo-300' },
       ];
       pills.forEach((p, i) => {
         const pill = document.getElementById(p.id);
@@ -1167,24 +1208,76 @@
         }, 400 * (i + 1));
       });
       document.getElementById('progressBarFill').style.width = '100%';
-      document.getElementById('progressPercent').textContent = 'CONFIG READY • OPEN COLAB';
+      document.getElementById('progressPercent').textContent = 'CONFIG READY • START ON GITHUB';
       document.getElementById('statusSpinner').className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping';
 
       appendLog(`Job: ${cfg.source_url}`, 'text-zinc-300');
-      appendLog('Settings travel with the Colab link — no file to download or upload.', 'text-zinc-300');
+      appendLog('GitHub Actions does the clipping — no file to download or upload. URL copied, paste it in the GitHub form.', 'text-zinc-300');
       appendLog(`Settings: ${cfg.clip_length} • ${cfg.max_clips} clips • ${cfg.caption_style} captions • segment ${cfg.segment_start}s + ${cfg.segment_duration}s`, 'text-zinc-300');
 
-      // Reveal the Colab handoff buttons under the terminal.
+      // Reveal the Actions handoff (primary) and the Colab handoff (fallback).
+      const actionsHandoff = document.getElementById('actionsHandoff');
+      if (actionsHandoff) actionsHandoff.classList.remove('hidden');
+      const actionsStatus = document.getElementById('actionsStatus');
+      if (actionsStatus) actionsStatus.textContent = 'Waiting for you to start the run on GitHub Actions above.';
       const handoff = document.getElementById('colabHandoff');
       if (handoff) handoff.classList.remove('hidden');
 
-      showToast('Config ready — open Colab, your settings go with the link', 'success');
+      startActionsPoll();
+      showToast('Config ready — start the run on GitHub Actions (URL copied)', 'success');
     }
 
-    // Load real results produced by the Colab notebook.
+    // Map + render real results, from either backend.
     // Expects liveclip_clips.json (version 1): { source_url, source_title,
     // settings, clips: [{ id, title, score, start, end, startTime, endTime,
     // duration, hookReason, transcript, hashtags, mp4, srt, words: [...] }] }.
+    // source is 'actions' (GitHub Actions run, MP4s linked from the results
+    // branch) or 'file' (a liveclip_clips.json loaded from disk, Colab route).
+    function ingestResults(data, source) {
+      if (!data || !Array.isArray(data.clips) || data.clips.length === 0) {
+        throw new Error('no clips in results');
+      }
+      const mapped = data.clips.map((c, i) => {
+        if (typeof c.score !== 'number' || !c.transcript || !c.startTime) {
+          throw new Error('clip is missing score, transcript or startTime');
+        }
+        const visual = CLIP_VISUALS[i % CLIP_VISUALS.length];
+        return {
+          id: c.id || `clip-${i + 1}`,
+          title: c.title || 'Untitled clip',
+          score: Math.round(c.score),
+          startTime: c.startTime,
+          endTime: c.endTime || '',
+          duration: c.duration || '',
+          hookReason: c.hookReason || 'Scored by the hook detector',
+          transcript: c.transcript,
+          hashtags: Array.isArray(c.hashtags) ? c.hashtags : [],
+          mp4: c.mp4 || '',
+          srt: c.srt || '',
+          words: Array.isArray(c.words) ? c.words : null,
+          gradient: visual.gradient,
+          accentColor: visual.accentColor,
+          speakerTag: 'Real transcript • ' + (source === 'actions' ? 'GitHub Actions render' : 'Colab render')
+        };
+      });
+      clipsData = mapped;
+      state.loadedResults = {
+        source_title: data.source_title || '',
+        source_url: data.source_url || '',
+        generated_at: data.generated_at || ''
+      };
+      state.resultsSource = source;
+      state.resultsBaseUrl = source === 'actions' ? ACTIONS_RESULTS_BASE : null;
+      renderClipsGallery();
+      document.getElementById('progressBarFill').style.width = '100%';
+      document.getElementById('progressPercent').textContent = `LOADED • ${mapped.length} REAL CLIPS`;
+      document.getElementById('statusSpinner').className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+      appendLog(`Loaded ${mapped.length} real clips (${source})`, 'text-emerald-400');
+      if (data.source_title) appendLog(`Source: ${data.source_title}`, 'text-zinc-300');
+      return mapped;
+    }
+
+    // Load real results produced by the Colab notebook (file route).
     function loadResultsFile(event) {
       const file = event.target.files && event.target.files[0];
       if (!file) return;
@@ -1192,44 +1285,7 @@
       reader.onload = () => {
         try {
           const data = JSON.parse(reader.result);
-          if (!data || !Array.isArray(data.clips) || data.clips.length === 0) {
-            throw new Error('no clips in file');
-          }
-          const mapped = data.clips.map((c, i) => {
-            if (typeof c.score !== 'number' || !c.transcript || !c.startTime) {
-              throw new Error('clip is missing score, transcript or startTime');
-            }
-            const visual = CLIP_VISUALS[i % CLIP_VISUALS.length];
-            return {
-              id: c.id || `clip-${i + 1}`,
-              title: c.title || 'Untitled clip',
-              score: Math.round(c.score),
-              startTime: c.startTime,
-              endTime: c.endTime || '',
-              duration: c.duration || '',
-              hookReason: c.hookReason || 'Scored by the Colab hook detector',
-              transcript: c.transcript,
-              hashtags: Array.isArray(c.hashtags) ? c.hashtags : [],
-              mp4: c.mp4 || '',
-              srt: c.srt || '',
-              words: Array.isArray(c.words) ? c.words : null,
-              gradient: visual.gradient,
-              accentColor: visual.accentColor,
-              speakerTag: 'Real transcript • Colab render'
-            };
-          });
-          clipsData = mapped;
-          state.loadedResults = {
-            source_title: data.source_title || '',
-            source_url: data.source_url || '',
-            generated_at: data.generated_at || ''
-          };
-          renderClipsGallery();
-          document.getElementById('progressBarFill').style.width = '100%';
-          document.getElementById('progressPercent').textContent = `LOADED • ${mapped.length} REAL CLIPS`;
-          document.getElementById('statusSpinner').className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
-          appendLog(`Loaded ${mapped.length} real clips from ${file.name}`, 'text-emerald-400');
-          if (data.source_title) appendLog(`Source: ${data.source_title}`, 'text-zinc-300');
+          const mapped = ingestResults(data, 'file');
           showToast(`Loaded ${mapped.length} real clips from Colab`, 'success');
         } catch (err) {
           showToast('That file is not a valid liveclip_clips.json — download it from the Colab notebook', 'error');
@@ -1239,6 +1295,85 @@
       };
       reader.readAsText(file);
     }
+
+    // GitHub Actions: check whether the run finished and load its clips.
+    // The workflow publishes run_status.json + liveclip_clips.json to the
+    // orphan `results` branch; the page reads them from raw.githubusercontent.
+    async function checkActionsResults(opts) {
+      const silent = opts && opts.silent;
+      const statusEl = document.getElementById('actionsStatus');
+      const setStatus = (t) => { if (statusEl) statusEl.textContent = t; };
+      let status;
+      try {
+        const res = await fetch(ACTIONS_RESULTS_BASE + 'run_status.json?cache=' + Date.now());
+        if (!res.ok) throw new Error('no status yet');
+        status = await res.json();
+      } catch (err) {
+        setStatus('No run found yet — start one on GitHub Actions above, then come back here.');
+        return false;
+      }
+      if (status.status === 'running') {
+        const mins = state.pendingRun ? Math.max(1, Math.round((Date.now() - state.pendingRun.startedAt) / 60000)) : null;
+        setStatus(`Still clipping…${mins ? ` started ${mins} min ago` : ''} (about 15–25 min for a 20-min segment). This page keeps checking by itself.`);
+        return false;
+      }
+      if (status.status === 'error') {
+        setStatus(`The run failed: ${status.message || 'unknown error'}. Try starting it again on GitHub Actions.`);
+        stopActionsPoll();
+        if (!silent) showToast('The GitHub run failed — see the status above', 'error');
+        return false;
+      }
+      if (status.status !== 'done') {
+        setStatus('Waiting for the run to finish…');
+        return false;
+      }
+      // Done — load the clips. Only accept results for the run this page
+      // started (or the latest run, if the page was reloaded without one).
+      if (state.pendingRun && status.source_url && status.source_url !== state.pendingRun.source_url) {
+        setStatus('The latest run is for a different video — start a run for this URL on GitHub Actions.');
+        return false;
+      }
+      try {
+        const res = await fetch(ACTIONS_RESULTS_BASE + 'liveclip_clips.json?cache=' + Date.now());
+        if (!res.ok) throw new Error('results file not found');
+        const data = await res.json();
+        const mapped = ingestResults(data, 'actions');
+        setStatus(`Done — ${mapped.length} clip(s) ready. The real MP4s are linked on each card.`);
+        stopActionsPoll();
+        try { localStorage.removeItem('liveclip_pending_run'); } catch (e) {}
+        showToast(`Loaded ${mapped.length} real clips from GitHub Actions`, 'success');
+        return true;
+      } catch (err) {
+        setStatus('The run says done, but the results file could not be loaded — tap Check for my clips again.');
+        return false;
+      }
+    }
+
+    // Keep checking for the run's results every minute, up to ~45 min.
+    function startActionsPoll() {
+      stopActionsPoll();
+      state.actionsPollTimer = setInterval(() => { checkActionsResults({ silent: true }); }, 60000);
+      const btn = document.getElementById('stopActionsPollBtn');
+      if (btn) btn.classList.remove('hidden');
+      setTimeout(() => { stopActionsPoll(); }, 45 * 60 * 1000);
+    }
+    function stopActionsPoll() {
+      if (state.actionsPollTimer) { clearInterval(state.actionsPollTimer); state.actionsPollTimer = null; }
+      const btn = document.getElementById('stopActionsPollBtn');
+      if (btn) btn.classList.add('hidden');
+    }
+
+    // Resume checking if a run was started and the page was reloaded.
+    try {
+      const saved = JSON.parse(localStorage.getItem('liveclip_pending_run') || 'null');
+      if (saved && saved.source_url && Date.now() - saved.startedAt < 60 * 60 * 1000) {
+        state.pendingRun = saved;
+        const h = document.getElementById('actionsHandoff');
+        if (h) h.classList.remove('hidden');
+        startActionsPoll();
+        checkActionsResults({ silent: true });
+      }
+    } catch (e) {}
 
     function sleep(ms) {
       return new Promise(resolve => setTimeout(resolve, ms));
@@ -1259,7 +1394,7 @@
         grid.innerHTML = `
           <div class="col-span-full glass-card rounded-2xl p-8 text-center">
             <p class="text-sm font-semibold text-white mb-1.5">No clips yet — these will be your real clips</p>
-            <p class="text-xs text-zinc-400 leading-relaxed max-w-md mx-auto">Paste a YouTube URL above and click <span class="text-zinc-200 font-medium">Generate Viral Clips</span> to build the Colab config, run the notebook, then come back and click <span class="text-zinc-200 font-medium">Load Colab Results</span> with the <span class="font-mono">liveclip_clips.json</span> file. Scores, transcripts and times on this page always come from your actual video.</p>
+            <p class="text-xs text-zinc-400 leading-relaxed max-w-md mx-auto">Paste a YouTube URL above and click <span class="text-zinc-200 font-medium">Generate Viral Clips</span> to start a free GitHub Actions run — your clips appear here by themselves, no file to download or upload. (Colab still works too: run the notebook, then <span class="text-zinc-200 font-medium">Load Colab Results</span> with the <span class="font-mono">liveclip_clips.json</span> file.) Scores, transcripts and times on this page always come from your actual video.</p>
           </div>`;
         lucide.createIcons();
         return;
@@ -1376,7 +1511,9 @@
 
                 ${clip.mp4 ? `
                 <p class="text-[11px] font-mono text-zinc-500">
-                  Real MP4: ${clip.mp4} — inside the Colab export pack (LiveClip_Export_Pack.zip)
+                  ${state.resultsSource === 'actions' && state.resultsBaseUrl
+                    ? `Real MP4: <a href="${state.resultsBaseUrl}${clip.mp4}" target="_blank" rel="noopener noreferrer" class="text-emerald-400 hover:text-emerald-300 underline">Download ${clip.mp4}</a>`
+                    : `Real MP4: ${clip.mp4} — inside the Colab export pack (LiveClip_Export_Pack.zip)`}
                 </p>` : ''}
               </div>
             </div>
@@ -1838,7 +1975,10 @@
           }))
         }, null, 2));
       }
-      zip.file('README.txt', 'LiveClip Studio AI export pack.\nCaptions are real .srt files built from the Colab transcription word timings, one per clip.\nThe rendered MP4s live in the Colab export pack (LiveClip_Export_Pack.zip from the notebook) — this page cannot host them.\nUse liveclip_config.json to re-run the same job in Colab.\n');
+      const mp4Note = state.resultsSource === 'actions'
+        ? 'The rendered MP4s are linked on each clip card (Download MP4) and in the full export pack on the GitHub Actions results branch.\n'
+        : 'The rendered MP4s live in the Colab export pack (LiveClip_Export_Pack.zip from the notebook) — this page cannot host them.\n';
+      zip.file('README.txt', 'LiveClip Studio AI export pack.\nCaptions are real .srt files built from the transcription word timings, one per clip.\n' + mp4Note + 'Use liveclip_config.json to re-run the same job.\n');
       const blob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
