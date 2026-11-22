@@ -121,6 +121,8 @@ jobs:
           EOF
 
       - name: Publish run status (running)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p results
           python3 - <<'EOF'
@@ -141,4 +143,6 @@ jobs:
 
       - name: Publish results
         if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash .github/scripts/publish_results.sh "clips for ${SOURCE_URL}"
